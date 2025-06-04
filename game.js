@@ -88,6 +88,7 @@ class MainMenu extends Phaser.Scene {
 
         // Calculate responsive text sizes
         const titleSize = Math.min(72, Math.floor(w * 0.08));
+        const instructionsSize = Math.min(24, Math.floor(w * 0.03)); // Smaller text for instructions
         const scoreSize = Math.min(48, Math.floor(w * 0.06));
         const buttonTextSize = Math.min(48, Math.floor(w * 0.06));
 
@@ -103,8 +104,33 @@ class MainMenu extends Phaser.Scene {
             antialias: true,        // Enable antialiasing
             padding: { x: 4, y: 4 } // Add slight padding to prevent text clipping
         };
-        this.add.text(w/2, h/3, 'Brain Training Game', titleStyle)
+        this.add.text(w/2, h/4, 'Brain Training Game', titleStyle)
             .setOrigin(0.5);
+
+        // Add instructions
+        const instructionsStyle = {
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+            fontSize: `${instructionsSize}px`,
+            fontStyle: 'bold',
+            color: '#ffffff',
+            align: 'center',
+            resolution: 2,
+            antialias: true,
+            padding: { x: 4, y: 4 },
+            lineSpacing: 10
+        };
+
+        const instructions = [
+            'Touch and drag on either side of the screen',
+            'Left joystick: Catch the blue dots',
+            'Right joystick: Catch the red dots',
+            'Dots get faster each time they respawn',
+            'Timer extends when dots take damage'
+        ];
+
+        const instructionsText = this.add.text(w/2, h/2 - 50, instructions, instructionsStyle)
+            .setOrigin(0.5)
+            .setAlpha(0.9);
 
         // Show last score if exists
         if (data.lastScore !== undefined) {
@@ -118,7 +144,7 @@ class MainMenu extends Phaser.Scene {
                 antialias: true,
                 padding: { x: 4, y: 4 }
             };
-            this.add.text(w/2, h/2 - 50, `Last Score: ${data.lastScore}`, scoreStyle)
+            this.add.text(w/2, h/2 + 50, `Last Score: ${data.lastScore}`, scoreStyle)
                 .setOrigin(0.5);
         }
 
@@ -134,7 +160,7 @@ class MainMenu extends Phaser.Scene {
             padding: { x: 4, y: 4 }
         };
         
-        const playButton = this.add.container(w/2, h/2 + 50);
+        const playButton = this.add.container(w/2, h/2 + 150);
         
         // Scale button background based on text size
         const buttonWidth = Math.max(200, buttonTextSize * 4);
@@ -163,6 +189,7 @@ class MainMenu extends Phaser.Scene {
 
         // Recalculate text sizes
         const titleSize = Math.min(72, Math.floor(w * 0.08));
+        const instructionsSize = Math.min(24, Math.floor(w * 0.03));
         const scoreSize = Math.min(48, Math.floor(w * 0.06));
         const buttonTextSize = Math.min(48, Math.floor(w * 0.06));
         
@@ -170,21 +197,29 @@ class MainMenu extends Phaser.Scene {
         this.children.list.forEach(child => {
             if (child.type === 'Text') {
                 if (child.text === 'Brain Training Game') {
-                    child.setPosition(w/2, h/3)
+                    child.setPosition(w/2, h/4)
                         .setStyle({ 
                             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
                             fontSize: `${titleSize}px`,
                             wordWrap: { width: w * 0.8 }
                         });
                 } else if (child.text.startsWith('Last Score')) {
-                    child.setPosition(w/2, h/2 - 50)
+                    child.setPosition(w/2, h/2 + 50)
                         .setStyle({ 
                             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
                             fontSize: `${scoreSize}px`
                         });
+                } else if (Array.isArray(child.text)) { // Instructions text
+                    child.setPosition(w/2, h/2 - 50)
+                        .setStyle({
+                            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+                            fontSize: `${instructionsSize}px`,
+                            lineSpacing: 10,
+                            wordWrap: { width: w * 0.9 }
+                        });
                 }
             } else if (child.type === 'Container') {
-                child.setPosition(w/2, h/2 + 50);
+                child.setPosition(w/2, h/2 + 150); // Moved down for instructions
                 
                 // Update button size
                 const buttonWidth = Math.max(200, buttonTextSize * 4);

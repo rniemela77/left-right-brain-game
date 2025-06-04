@@ -165,13 +165,14 @@ class GameScene extends Phaser.Scene {
         this.rightSpawnCooldown = 0;
 
         // Constants
-        this.SCORE_INTERVAL = 100; // 1 second in milliseconds
-        this.MAX_SPEED = 600;  // Doubled from 300
+        this.SCORE_INTERVAL = 100; // 0.1 seconds in milliseconds
+        this.MAX_SPEED = 600;
         this.MIN_TARGET_SPEED = 20;
         this.MAX_TARGET_SPEED = 80;
+        this.GAME_DURATION = 15000; // 15 seconds in milliseconds
+        this.TIME_BONUS_PER_HIT = 150; // 1 second bonus per hit
 
         // Timer properties
-        this.GAME_DURATION = 60000; // 5 seconds in milliseconds
         this.timeLeft = this.GAME_DURATION;
         this.timerBar = null;
         this.timerBarBg = null;
@@ -425,6 +426,10 @@ class GameScene extends Phaser.Scene {
         this.timerBarBg.setPosition(barX, barY).setSize(barWidth, barHeight);
         this.timerBar.setPosition(barX, barY).setSize(barWidth, barHeight);
     }
+
+    addTimeBonus() {
+        this.timeLeft = Math.min(this.GAME_DURATION, this.timeLeft + this.TIME_BONUS_PER_HIT);
+    }
 }
 
 class PlayerCircle {
@@ -553,11 +558,12 @@ class Target {
                 this.health -= TARGET_CONFIG.HEALTH_DRAIN_AMOUNT;
                 this.lastHealthDrain = now;
                 
-                // Update dot size based on health with minimum size
+                // Add time bonus when dot takes damage
+                this.scene.addTimeBonus();
+                
+                // Update dot size based on health
                 const healthRatio = this.health / this.maxHealth;
-                // Linear interpolation between MIN_DOT_SIZE and baseRadius
-                const newRadius = TARGET_CONFIG.MIN_DOT_SIZE + 
-                    (this.baseRadius - TARGET_CONFIG.MIN_DOT_SIZE) * healthRatio;
+                const newRadius = this.baseRadius * healthRatio;
                 this.dot.setRadius(newRadius);
                 this.dot.body.setCircle(newRadius);
                 

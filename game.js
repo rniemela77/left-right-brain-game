@@ -18,6 +18,10 @@ let joystickZones = {};
 let leftIndicator, rightIndicator;
 let leftThumbLine, rightThumbLine;
 let leftSparkle, rightSparkle;
+let scoreText;
+let score = 0;
+let scoreTimer = 0;
+const SCORE_INTERVAL = 100; // 1 second in milliseconds
 const MAX_SPEED = 300;
 const MIN_TARGET_SPEED = 20;
 const MAX_TARGET_SPEED = 80;
@@ -145,14 +149,14 @@ class Target {
     }
     
     checkOverlap(circle) {
-        if (this.scene.physics.overlap(circle, this.dot)) {
+        const isOverlapping = this.scene.physics.overlap(circle, this.dot);
+        if (isOverlapping) {
             if (this.spawnCooldown <= 0) {
                 this.createSparkle();
                 this.spawnCooldown = PARTICLE_CONFIG.SPAWN_COOLDOWN;
             }
-            return true;
         }
-        return false;
+        return isOverlapping;
     }
     
     createSparkle() {
@@ -222,6 +226,17 @@ function create() {
     targetBlue = new Target(this, w * TARGET_CONFIG.LEFT_X_RATIO, h * TARGET_CONFIG.Y_RATIO, radius, 0x8888ff, true);
     targetRed = new Target(this, w * TARGET_CONFIG.RIGHT_X_RATIO, h * TARGET_CONFIG.Y_RATIO, radius, 0xff8888, false);
 
+    // Add score display
+    const textStyle = {
+        font: 'bold 200px Arial',
+        fill: '#ffffff',
+        align: 'center'
+    };
+    scoreText = this.add.text(w/2, h/2, '0', textStyle)
+        .setOrigin(0.5)
+        .setAlpha(0.15)
+        .setDepth(1);
+
     this.scale.on('resize', resize, this);
 }
 
@@ -230,6 +245,27 @@ function update() {
     const h = this.scale.height;
     const zoneHeight = h * 0.25;
     const maxDist = zoneHeight / 2;
+
+    // Update score timer
+    scoreTimer += this.game.loop.delta;
+    if (scoreTimer >= SCORE_INTERVAL) {
+        // Add points for each contained dot
+        let pointsThisInterval = 0;
+        if (targetBlue.checkOverlap(leftCircle)) {
+            pointsThisInterval++;
+        }
+        if (targetRed.checkOverlap(rightCircle)) {
+            pointsThisInterval++;
+        }
+        if (pointsThisInterval > 0) {
+            score += pointsThisInterval;
+            scoreText.setText(score.toString());
+        }
+        scoreTimer = 0;
+    }
+
+    // Update score position on resize
+    scoreText.setPosition(w/2, h/2);
 
     // Clear graphics
     leftThumbLine.clear();
@@ -345,6 +381,9 @@ function resize(gameSize) {
     // Resize targets
     targetBlue.resize(width, height);
     targetRed.resize(width, height);
+
+    // Update score text position
+    scoreText.setPosition(width/2, height/2);
 }
 
 function createParticles(x, y, isLeft) {

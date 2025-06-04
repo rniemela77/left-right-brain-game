@@ -87,16 +87,21 @@ class MainMenu extends Phaser.Scene {
         const h = this.scale.height;
 
         // Calculate responsive text sizes
-        const titleSize = Math.min(72, Math.floor(w * 0.08)); // 8% of screen width, max 72px
-        const scoreSize = Math.min(48, Math.floor(w * 0.06)); // 6% of screen width, max 48px
-        const buttonTextSize = Math.min(48, Math.floor(w * 0.06)); // 6% of screen width, max 48px
+        const titleSize = Math.min(72, Math.floor(w * 0.08));
+        const scoreSize = Math.min(48, Math.floor(w * 0.06));
+        const buttonTextSize = Math.min(48, Math.floor(w * 0.06));
 
-        // Add title
+        // Add title with improved text settings
         const titleStyle = {
-            font: `bold ${titleSize}px Arial`,
-            fill: '#ffffff',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+            fontSize: `${titleSize}px`,
+            fontStyle: 'bold',
+            color: '#ffffff',
             align: 'center',
-            wordWrap: { width: w * 0.8 } // Wrap text if needed
+            wordWrap: { width: w * 0.8 },
+            resolution: 2,           // Increased resolution for sharper text
+            antialias: true,        // Enable antialiasing
+            padding: { x: 4, y: 4 } // Add slight padding to prevent text clipping
         };
         this.add.text(w/2, h/3, 'Brain Training Game', titleStyle)
             .setOrigin(0.5);
@@ -104,9 +109,14 @@ class MainMenu extends Phaser.Scene {
         // Show last score if exists
         if (data.lastScore !== undefined) {
             const scoreStyle = {
-                font: `bold ${scoreSize}px Arial`,
-                fill: '#ffffff',
-                align: 'center'
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+                fontSize: `${scoreSize}px`,
+                fontStyle: 'bold',
+                color: '#ffffff',
+                align: 'center',
+                resolution: 2,
+                antialias: true,
+                padding: { x: 4, y: 4 }
             };
             this.add.text(w/2, h/2 - 50, `Last Score: ${data.lastScore}`, scoreStyle)
                 .setOrigin(0.5);
@@ -114,9 +124,14 @@ class MainMenu extends Phaser.Scene {
 
         // Add play button
         const buttonStyle = {
-            font: `bold ${buttonTextSize}px Arial`,
-            fill: '#ffffff',
-            align: 'center'
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+            fontSize: `${buttonTextSize}px`,
+            fontStyle: 'bold',
+            color: '#ffffff',
+            align: 'center',
+            resolution: 2,
+            antialias: true,
+            padding: { x: 4, y: 4 }
         };
         
         const playButton = this.add.container(w/2, h/2 + 50);
@@ -157,12 +172,16 @@ class MainMenu extends Phaser.Scene {
                 if (child.text === 'Brain Training Game') {
                     child.setPosition(w/2, h/3)
                         .setStyle({ 
-                            font: `bold ${titleSize}px Arial`,
+                            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+                            fontSize: `${titleSize}px`,
                             wordWrap: { width: w * 0.8 }
                         });
                 } else if (child.text.startsWith('Last Score')) {
                     child.setPosition(w/2, h/2 - 50)
-                        .setStyle({ font: `bold ${scoreSize}px Arial` });
+                        .setStyle({ 
+                            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+                            fontSize: `${scoreSize}px`
+                        });
                 }
             } else if (child.type === 'Container') {
                 child.setPosition(w/2, h/2 + 50);
@@ -175,7 +194,10 @@ class MainMenu extends Phaser.Scene {
                     if (element.type === 'Rectangle') {
                         element.setSize(buttonWidth, buttonHeight);
                     } else if (element.type === 'Text') {
-                        element.setStyle({ font: `bold ${buttonTextSize}px Arial` });
+                        element.setStyle({ 
+                            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+                            fontSize: `${buttonTextSize}px`
+                        });
                     }
                 });
             }

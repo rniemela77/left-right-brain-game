@@ -45,8 +45,8 @@ const PLAYER_CONFIG = {
     
     // Movement
     BOUNCE: 0.5,              // Bounce factor when hitting walls
-    CONTROL_SENSITIVITY: 0.7, // Lower = less sensitive (0.1 to 1.0)
-    DEADZONE: 0.1,           // Ignore very small movements (0.0 to 1.0)
+    CONTROL_SENSITIVITY: 1.0, // Maximum sensitivity for direct 1:1 control
+    DEADZONE: 0.01,           // Minimal deadzone, just enough to prevent jitter
     ACCELERATION: 0.8,        // How quickly to reach target speed (0.1 to 1.0)
     
     // Visuals
@@ -166,7 +166,7 @@ class GameScene extends Phaser.Scene {
 
         // Constants
         this.SCORE_INTERVAL = 100; // 1 second in milliseconds
-        this.MAX_SPEED = 300;
+        this.MAX_SPEED = 600;  // Doubled from 300
         this.MIN_TARGET_SPEED = 20;
         this.MAX_TARGET_SPEED = 80;
 
@@ -175,6 +175,11 @@ class GameScene extends Phaser.Scene {
         this.timeLeft = this.GAME_DURATION;
         this.timerBar = null;
         this.timerBarBg = null;
+
+        // Joystick tracking
+        this.leftJoystickCenter = null;
+        this.rightJoystickCenter = null;
+        this.activePointers = new Map(); // Track which pointer is controlling which side
     }
 
     preload() {
@@ -186,11 +191,7 @@ class GameScene extends Phaser.Scene {
         const w = this.scale.width;
         const h = this.scale.height;
 
-        // Define joystick areas
-        const zoneHeight = h * 0.25;
-        const zoneY = h - zoneHeight;
-        this.joystickZones.left = this.add.rectangle(0, zoneY, w / 2, zoneHeight, 0x444444).setOrigin(0);
-        this.joystickZones.right = this.add.rectangle(w / 2, zoneY, w / 2, zoneHeight, 0x444444).setOrigin(0);
+        // Remove old joystick zones since we're using the full sides now
 
         // Create player circles
         const radius = Math.min(w, h) * PLAYER_CONFIG.SIZE_RATIO;
@@ -217,10 +218,10 @@ class GameScene extends Phaser.Scene {
             .setDepth(1);
 
         // Add timer bar background (gray)
-        const barWidth = this.scale.width * 0.8; // 80% of screen width
+        const barWidth = this.scale.width * 0.8;
         const barHeight = 20;
-        const barX = this.scale.width * 0.1; // 10% margin on each side
-        const barY = 20; // 20px from top
+        const barX = this.scale.width * 0.1;
+        const barY = 20;
         
         this.timerBarBg = this.add.rectangle(barX, barY, barWidth, barHeight, 0x333333)
             .setOrigin(0, 0.5);
@@ -232,7 +233,39 @@ class GameScene extends Phaser.Scene {
         // Reset timer
         this.timeLeft = this.GAME_DURATION;
 
+        // Setup input handlers
+        this.input.on('pointerdown', this.handlePointerDown, this);
+        this.input.on('pointerup', this.handlePointerUp, this);
+
         this.scale.on('resize', this.resize, this);
+    }
+
+    handlePointerDown(pointer) {
+        const w = this.scale.width;
+        const isLeftSide = pointer.x < w / 2;
+        
+        // Only set center if we don't already have an active pointer for this side
+        if (isLeftSide && !this.leftJoystickCenter) {
+            this.leftJoystickCenter = { x: pointer.x, y: pointer.y };
+            this.activePointers.set(pointer.id, 'left');
+        } else if (!isLeftSide && !this.rightJoystickCenter) {
+            this.rightJoystickCenter = { x: pointer.x, y: pointer.y };
+            this.activePointers.set(pointer.id, 'right');
+        }
+    }
+
+    handlePointerUp(pointer) {
+        const side = this.activePointers.get(pointer.id);
+        if (side === 'left') {
+            this.leftJoystickCenter = null;
+            this.leftCircle.setVelocity(0, 0);
+            this.leftCircle.clearGraphics();
+        } else if (side === 'right') {
+            this.rightJoystickCenter = null;
+            this.rightCircle.setVelocity(0, 0);
+            this.rightCircle.clearGraphics();
+        }
+        this.activePointers.delete(pointer.id);
     }
 
     createParticles(x, y, isLeft, color) {
@@ -284,18 +317,10 @@ class GameScene extends Phaser.Scene {
 
         // Check for game over
         if (this.timeLeft <= 0) {
-            // Store the final score
             const finalScore = this.score;
-            
-            // Reset to menu
             this.scene.start('MainMenu', { lastScore: finalScore });
             return;
         }
-
-        const w = this.scale.width;
-        const h = this.scale.height;
-        const zoneHeight = h * 0.25;
-        const maxDist = zoneHeight / 2;
 
         // Clear graphics
         this.leftCircle.clearGraphics();
@@ -303,77 +328,51 @@ class GameScene extends Phaser.Scene {
         this.leftSparkle.clear();
         this.rightSparkle.clear();
 
-        // Reset velocities
-        this.leftCircle.setVelocity(0, 0);
-        this.rightCircle.setVelocity(0, 0);
-
-        let leftPointer = null;
-        let rightPointer = null;
-
         // Process input for joysticks
         this.input.manager.pointers.forEach(pointer => {
             if (!pointer.isDown) return;
-            const px = pointer.x;
-            const py = pointer.y;
 
-            // Left joystick
-            if (py > h - zoneHeight && px < w / 2) {
-                const centerX = (w / 2) / 2;
-                const centerY = h - zoneHeight / 2;
-                let dx = px - centerX;
-                let dy = py - centerY;
-                
-                // Calculate distance from center as a ratio (0 to 1)
-                let distance = Math.sqrt(dx * dx + dy * dy) / maxDist;
-                
-                // Apply deadzone
-                if (distance < PLAYER_CONFIG.DEADZONE) {
-                    dx = 0;
-                    dy = 0;
-                } else {
-                    // Normalize and apply sensitivity curve
-                    let factor = Math.min(1, distance);
-                    factor = Math.pow(factor, 1 / PLAYER_CONFIG.CONTROL_SENSITIVITY);
-                    dx = (dx / maxDist) * factor;
-                    dy = (dy / maxDist) * factor;
-                }
-                
-                this.leftCircle.setVelocity(dx, dy);
-                leftPointer = pointer;
-            }
+            const side = this.activePointers.get(pointer.id);
+            if (!side) return;
 
-            // Right joystick
-            if (py > h - zoneHeight && px > w / 2) {
-                const centerX = w / 2 + (w / 2) / 2;
-                const centerY = h - zoneHeight / 2;
-                let dx = px - centerX;
-                let dy = py - centerY;
-                
-                // Calculate distance from center as a ratio (0 to 1)
-                let distance = Math.sqrt(dx * dx + dy * dy) / maxDist;
-                
-                // Apply deadzone
-                if (distance < PLAYER_CONFIG.DEADZONE) {
-                    dx = 0;
-                    dy = 0;
+            const center = side === 'left' ? this.leftJoystickCenter : this.rightJoystickCenter;
+            if (!center) return;
+
+            // Calculate offset from center
+            const dx = pointer.x - center.x;
+            const dy = pointer.y - center.y;
+            
+            // Calculate distance as a ratio of screen height (for consistent feel across screen sizes)
+            const maxDist = this.scale.height * 0.15; // Reduced from 0.25 to make it more sensitive
+            const distance = Math.sqrt(dx * dx + dy * dy) / maxDist;
+            
+            // Apply deadzone and sensitivity
+            if (distance < PLAYER_CONFIG.DEADZONE) {
+                if (side === 'left') {
+                    this.leftCircle.setVelocity(0, 0);
                 } else {
-                    // Normalize and apply sensitivity curve
-                    let factor = Math.min(1, distance);
-                    factor = Math.pow(factor, 1 / PLAYER_CONFIG.CONTROL_SENSITIVITY);
-                    dx = (dx / maxDist) * factor;
-                    dy = (dy / maxDist) * factor;
+                    this.rightCircle.setVelocity(0, 0);
                 }
+            } else {
+                // Normalize and apply sensitivity curve with increased response
+                let factor = Math.min(1.5, distance); // Allow overshooting for faster movement
+                factor = Math.pow(factor, 1 / PLAYER_CONFIG.CONTROL_SENSITIVITY);
+                const normalizedDx = (dx / maxDist) * factor;
+                const normalizedDy = (dy / maxDist) * factor;
                 
-                this.rightCircle.setVelocity(dx, dy);
-                rightPointer = pointer;
+                if (side === 'left') {
+                    this.leftCircle.setVelocity(normalizedDx, normalizedDy);
+                    this.leftCircle.updateThumbLine(pointer);
+                } else {
+                    this.rightCircle.setVelocity(normalizedDx, normalizedDy);
+                    this.rightCircle.updateThumbLine(pointer);
+                }
             }
         });
 
         // Update visuals
         this.leftCircle.updateIndicator();
         this.rightCircle.updateIndicator();
-        this.leftCircle.updateThumbLine(leftPointer);
-        this.rightCircle.updateThumbLine(rightPointer);
 
         // Update targets
         this.targetBlue.update(1/60);
@@ -405,11 +404,6 @@ class GameScene extends Phaser.Scene {
         const width = gameSize.width;
         const height = gameSize.height;
         this.cameras.resize(width, height);
-
-        const zoneHeight = height * 0.25;
-        const zoneY = height - zoneHeight;
-        this.joystickZones.left.setPosition(0, zoneY).setSize(width / 2, zoneHeight);
-        this.joystickZones.right.setPosition(width / 2, zoneY).setSize(width / 2, zoneHeight);
 
         // Resize circles
         this.leftCircle.resize(width, height);

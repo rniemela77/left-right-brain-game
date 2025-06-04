@@ -35,7 +35,11 @@ const TARGET_CONFIG = {
     HEALTH_DRAIN_INTERVAL: 100, // 0.1 seconds in milliseconds
     HEALTH_DRAIN_AMOUNT: 1,
     // Minimum dot size in pixels
-    MIN_DOT_SIZE: 5
+    MIN_DOT_SIZE: 5,
+    // Outline settings
+    OUTLINE_WIDTH: 2,
+    OUTLINE_COLOR: 0xFFFFFF,  // White outline
+    OUTLINE_ALPHA: 0.8        // Slightly transparent to be less harsh
 };
 
 const PLAYER_CONFIG = {
@@ -533,8 +537,9 @@ class Target {
         this.SPEED_INCREASE_PER_RESPAWN = 0.2; // 20% faster each respawn
         this.baseSpeed = Phaser.Math.FloatBetween(this.scene.MIN_TARGET_SPEED, this.scene.MAX_TARGET_SPEED);
         
-        // Create the dot
-        this.dot = scene.add.circle(x, y, radius, color);
+        // Create the dot with outline
+        this.dot = scene.add.circle(x, y, radius, color)
+            .setStrokeStyle(TARGET_CONFIG.OUTLINE_WIDTH, TARGET_CONFIG.OUTLINE_COLOR, TARGET_CONFIG.OUTLINE_ALPHA);
         scene.physics.add.existing(this.dot);
         this.dot.body.setCircle(radius);
         this.dot.body.setCollideWorldBounds(true);
@@ -572,9 +577,10 @@ class Target {
         // Reset health
         this.health = this.maxHealth;
         
-        // Reset size to full size
+        // Reset size to full size and maintain outline
         this.dot.setRadius(this.baseRadius);
         this.dot.body.setCircle(this.baseRadius);
+        this.dot.setStrokeStyle(TARGET_CONFIG.OUTLINE_WIDTH, TARGET_CONFIG.OUTLINE_COLOR, TARGET_CONFIG.OUTLINE_ALPHA);
         
         // Find new random position
         const width = this.scene.scale.width;
@@ -630,11 +636,11 @@ class Target {
                 
                 // Update dot size based on health with minimum size
                 const healthRatio = this.health / this.maxHealth;
-                // Linear interpolation between MIN_DOT_SIZE and baseRadius
                 const newRadius = TARGET_CONFIG.MIN_DOT_SIZE + 
                     (this.baseRadius - TARGET_CONFIG.MIN_DOT_SIZE) * healthRatio;
                 this.dot.setRadius(newRadius);
                 this.dot.body.setCircle(newRadius);
+                this.dot.setStrokeStyle(TARGET_CONFIG.OUTLINE_WIDTH, TARGET_CONFIG.OUTLINE_COLOR, TARGET_CONFIG.OUTLINE_ALPHA);
                 
                 // Check if dot is depleted
                 if (this.health <= 0) {
@@ -652,15 +658,17 @@ class Target {
     
     resize(width, height) {
         const dotRadius = Math.min(width, height) * TARGET_CONFIG.SIZE_RATIO;
-        this.baseRadius = dotRadius; // Update base radius
+        this.baseRadius = dotRadius;
         
         // Set current radius based on health with minimum size
         const healthRatio = this.health / this.maxHealth;
-        // Linear interpolation between MIN_DOT_SIZE and baseRadius
         const currentRadius = TARGET_CONFIG.MIN_DOT_SIZE + 
             (this.baseRadius - TARGET_CONFIG.MIN_DOT_SIZE) * healthRatio;
+        
+        // Update dot and maintain outline
         this.dot.setRadius(currentRadius);
         this.dot.body.setCircle(currentRadius);
+        this.dot.setStrokeStyle(TARGET_CONFIG.OUTLINE_WIDTH, TARGET_CONFIG.OUTLINE_COLOR, TARGET_CONFIG.OUTLINE_ALPHA);
         
         // Reposition based on whether it's left or right
         const x = this.isLeft ? width * TARGET_CONFIG.LEFT_X_RATIO : width * TARGET_CONFIG.RIGHT_X_RATIO;

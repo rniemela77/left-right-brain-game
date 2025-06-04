@@ -372,6 +372,7 @@ class GameScene extends Phaser.Scene {
         this.leftJoystickCenter = null;
         this.rightJoystickCenter = null;
         this.activePointers = new Map(); // Track which pointer is controlling which side
+        this.thumbIndicators = null;
     }
 
     preload() {
@@ -382,6 +383,26 @@ class GameScene extends Phaser.Scene {
         this.input.addPointer(1);
         const w = this.scale.width;
         const h = this.scale.height;
+
+        // Create thumb placement indicators
+        this.thumbIndicators = {
+            left: this.createThumbIndicator(w * 0.25, h * 0.75, 0x99bbff),  // Light blue
+            right: this.createThumbIndicator(w * 0.75, h * 0.75, 0xff9999)  // Light red
+        };
+
+        // Fade out indicators after 3 seconds
+        this.time.delayedCall(3000, () => {
+            this.tweens.add({
+                targets: [this.thumbIndicators.left.container, this.thumbIndicators.right.container],
+                alpha: 0,
+                duration: 1000,
+                ease: 'Power2',
+                onComplete: () => {
+                    this.thumbIndicators.left.container.destroy();
+                    this.thumbIndicators.right.container.destroy();
+                }
+            });
+        });
 
         // Remove old joystick zones since we're using the full sides now
 
@@ -618,10 +639,51 @@ class GameScene extends Phaser.Scene {
         
         this.timerBarBg.setPosition(barX, barY).setSize(barWidth, barHeight);
         this.timerBar.setPosition(barX, barY).setSize(barWidth, barHeight);
+
+        // Update thumb indicators if they exist
+        if (this.thumbIndicators) {
+            if (this.thumbIndicators.left.container.active) {
+                this.thumbIndicators.left.container.setPosition(width * 0.25, height * 0.75);
+            }
+            if (this.thumbIndicators.right.container.active) {
+                this.thumbIndicators.right.container.setPosition(width * 0.75, height * 0.75);
+            }
+        }
     }
 
     addTimeBonus() {
         this.timeLeft = Math.min(this.GAME_DURATION, this.timeLeft + this.TIME_BONUS_PER_HIT);
+    }
+
+    createThumbIndicator(x, y, color) {
+        const container = this.add.container(x, y);
+        
+        // Create circle
+        const circle = this.add.circle(0, 0, 50, color, 0.2);
+        circle.setStrokeStyle(2, color, 0.8);
+        
+        // Create text
+        const text = this.add.text(0, 0, 'Place\nthumb\nhere', {
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+            fontSize: '20px',
+            color: '#ffffff',
+            align: 'center',
+            lineSpacing: 4
+        }).setOrigin(0.5);
+        
+        // Add pulse animation
+        this.tweens.add({
+            targets: circle,
+            scaleX: 1.2,
+            scaleY: 1.2,
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        container.add([circle, text]);
+        return { container, circle, text };
     }
 }
 

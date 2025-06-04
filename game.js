@@ -3,7 +3,7 @@ const PARTICLE_CONFIG = {
     // Spawn settings
     SPAWN_COOLDOWN: 0.1,
     PARTICLES_PER_BURST: 12,    // More particles
-    SPAWN_RADIUS: 8,           // Spawn within this radius
+    SPAWN_RADIUS: 4,           // Smaller spawn radius (was 8)
     
     // Movement
     BASE_SPEED: 120,            // Faster for more energy
@@ -11,8 +11,8 @@ const PARTICLE_CONFIG = {
     ANGLE_SPREAD: 6.28,        // Full circle (2*PI) for random directions
     
     // Appearance
-    START_SIZE: 5,            // Bigger starting size
-    MIN_SIZE: 2,              // Larger minimum size
+    START_SIZE: 3,            // Smaller particles (was 5)
+    MIN_SIZE: 1,              // Smaller minimum size (was 2)
     SIZE_DECAY: 0.94,         // Slower decay - larger number = faster decay
     ALPHA_START: 0.8,         // More visible
     
@@ -20,7 +20,6 @@ const PARTICLE_CONFIG = {
     LIFE_DECAY: 0.03,         // Longer life
     
     // Colors
-    COLORS: [0xFFD700, 0xFFFFFF],  // Gold and White
     WHITE_PARTICLE_CHANCE: 0.4      // 40% chance for white particles
 };
 
@@ -30,7 +29,13 @@ const TARGET_CONFIG = {
     // Base positions
     LEFT_X_RATIO: 0.25,
     RIGHT_X_RATIO: 0.75,
-    Y_RATIO: 0.25
+    Y_RATIO: 0.25,
+    // Health settings
+    MAX_HEALTH: 50,
+    HEALTH_DRAIN_INTERVAL: 100, // 0.1 seconds in milliseconds
+    HEALTH_DRAIN_AMOUNT: 1,
+    // Minimum dot size in pixels
+    MIN_DOT_SIZE: 5
 };
 
 const PLAYER_CONFIG = {
@@ -230,41 +235,38 @@ class GameScene extends Phaser.Scene {
         this.scale.on('resize', this.resize, this);
     }
 
-    createParticles(x, y, isLeft) {
+    createParticles(x, y, isLeft, color) {
         const particles = isLeft ? this.leftParticles : this.rightParticles;
         
-        // Create particles
+        // Create particles with the dot's color
         for (let i = 0; i < PARTICLE_CONFIG.PARTICLES_PER_BURST; i++) {
-            particles.push(new Particle(x, y));
+            particles.push(new Particle(x, y, color));
         }
     }
 
     updateParticles(graphics, particles) {
         graphics.clear();
         if (particles.length > 0) {
-            // Group particles by color for efficient rendering
-            const goldParticles = particles.filter(p => p.color === PARTICLE_CONFIG.COLORS[0]);
-            const whiteParticles = particles.filter(p => p.color === PARTICLE_CONFIG.COLORS[1]);
+            // Group particles by color
+            const colorGroups = new Map();
             
-            // Update and draw gold particles
-            if (goldParticles.length > 0) {
-                graphics.fillStyle(PARTICLE_CONFIG.COLORS[0], PARTICLE_CONFIG.ALPHA_START);
-                goldParticles.forEach(particle => {
+            // Group all particles by their color
+            particles.forEach(particle => {
+                if (!colorGroups.has(particle.color)) {
+                    colorGroups.set(particle.color, []);
+                }
+                colorGroups.get(particle.color).push(particle);
+            });
+            
+            // Draw each color group
+            colorGroups.forEach((particleGroup, color) => {
+                graphics.fillStyle(color, PARTICLE_CONFIG.ALPHA_START);
+                particleGroup.forEach(particle => {
                     if (particle.update(1/60)) {
                         graphics.fillCircle(particle.x, particle.y, particle.size);
                     }
                 });
-            }
-            
-            // Update and draw white particles
-            if (whiteParticles.length > 0) {
-                graphics.fillStyle(PARTICLE_CONFIG.COLORS[1], PARTICLE_CONFIG.ALPHA_START);
-                whiteParticles.forEach(particle => {
-                    if (particle.update(1/60)) {
-                        graphics.fillCircle(particle.x, particle.y, particle.size);
-                    }
-                });
-            }
+            });
             
             // Remove dead particles
             particles = particles.filter(particle => 
@@ -507,8 +509,13 @@ class Target {
     constructor(scene, x, y, radius, color, isLeft) {
         this.scene = scene;
         this.isLeft = isLeft;
-        this.particles = isLeft ? this.scene.leftParticles : this.scene.rightParticles;
-        this.sparkleGraphics = isLeft ? this.scene.leftSparkle : this.scene.rightSparkle;
+        this.baseRadius = radius;
+        this.color = color;
+        
+        // Health system
+        this.maxHealth = TARGET_CONFIG.MAX_HEALTH;
+        this.health = this.maxHealth;
+        this.lastHealthDrain = 0;
         
         // Create the dot
         this.dot = scene.add.circle(x, y, radius, color);
@@ -538,15 +545,68 @@ class Target {
     
     checkOverlap(playerCircle) {
         const isOverlapping = this.scene.physics.overlap(playerCircle.circle, this.dot);
-        if (isOverlapping && this.spawnCooldown <= 0) {
-            this.createSparkle();
-            this.spawnCooldown = PARTICLE_CONFIG.SPAWN_COOLDOWN;
+        
+        if (isOverlapping) {
+            // Handle particle effects
+            if (this.spawnCooldown <= 0) {
+                this.createSparkle();
+                this.spawnCooldown = PARTICLE_CONFIG.SPAWN_COOLDOWN;
+            }
+            
+            // Handle health drain
+            const now = this.scene.game.loop.time;
+            if (now - this.lastHealthDrain >= TARGET_CONFIG.HEALTH_DRAIN_INTERVAL) {
+                this.health -= TARGET_CONFIG.HEALTH_DRAIN_AMOUNT;
+                this.lastHealthDrain = now;
+                
+                // Update dot size based on health with minimum size
+                const healthRatio = this.health / this.maxHealth;
+                // Linear interpolation between MIN_DOT_SIZE and baseRadius
+                const newRadius = TARGET_CONFIG.MIN_DOT_SIZE + 
+                    (this.baseRadius - TARGET_CONFIG.MIN_DOT_SIZE) * healthRatio;
+                this.dot.setRadius(newRadius);
+                this.dot.body.setCircle(newRadius);
+                
+                // Check if dot is depleted
+                if (this.health <= 0) {
+                    this.respawn();
+                }
+            }
         }
+        
         return isOverlapping;
     }
     
+    respawn() {
+        // Reset health
+        this.health = this.maxHealth;
+        
+        // Reset size
+        this.dot.setRadius(this.baseRadius);
+        this.dot.body.setCircle(this.baseRadius);
+        
+        // Find new random position
+        const width = this.scene.scale.width;
+        const height = this.scene.scale.height;
+        const margin = this.baseRadius * 2; // Keep away from edges
+        
+        // Define spawn area based on which side (left/right) the dot belongs to
+        const minX = this.isLeft ? margin : width/2 + margin;
+        const maxX = this.isLeft ? width/2 - margin : width - margin;
+        const minY = margin;
+        const maxY = height - margin;
+        
+        // Set new random position
+        const newX = Phaser.Math.Between(minX, maxX);
+        const newY = Phaser.Math.Between(minY, maxY);
+        this.dot.setPosition(newX, newY);
+        
+        // Set new random velocity
+        this.setRandomVelocity();
+    }
+    
     createSparkle() {
-        this.scene.createParticles(this.dot.x, this.dot.y, this.isLeft);
+        this.scene.createParticles(this.dot.x, this.dot.y, this.isLeft, this.color);
     }
     
     setRandomVelocity() {
@@ -560,8 +620,15 @@ class Target {
     
     resize(width, height) {
         const dotRadius = Math.min(width, height) * 0.1 * TARGET_CONFIG.SIZE_RATIO;
-        this.dot.setRadius(dotRadius);
-        this.dot.body.setCircle(dotRadius);
+        this.baseRadius = dotRadius; // Update base radius
+        
+        // Set current radius based on health with minimum size
+        const healthRatio = this.health / this.maxHealth;
+        // Linear interpolation between MIN_DOT_SIZE and baseRadius
+        const currentRadius = TARGET_CONFIG.MIN_DOT_SIZE + 
+            (this.baseRadius - TARGET_CONFIG.MIN_DOT_SIZE) * healthRatio;
+        this.dot.setRadius(currentRadius);
+        this.dot.body.setCircle(currentRadius);
         
         // Reposition based on whether it's left or right
         const x = this.isLeft ? width * TARGET_CONFIG.LEFT_X_RATIO : width * TARGET_CONFIG.RIGHT_X_RATIO;
@@ -571,7 +638,7 @@ class Target {
 }
 
 class Particle {
-    constructor(x, y, angle) {
+    constructor(x, y, color) {
         // Random position within spawn radius
         const r = Math.random() * PARTICLE_CONFIG.SPAWN_RADIUS;
         const a = Math.random() * Math.PI * 2;
@@ -584,7 +651,7 @@ class Particle {
         this.life = 1;
         this.size = PARTICLE_CONFIG.START_SIZE;
         this.color = Math.random() < PARTICLE_CONFIG.WHITE_PARTICLE_CHANCE ? 
-            PARTICLE_CONFIG.COLORS[1] : PARTICLE_CONFIG.COLORS[0];
+            0xFFFFFF : color;  // Either white or the dot's color
     }
 
     update(delta) {

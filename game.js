@@ -14,7 +14,7 @@ const PARTICLE_CONFIG = {
     START_SIZE: 3,            // Smaller particles (was 5)
     MIN_SIZE: 1,              // Smaller minimum size (was 2)
     SIZE_DECAY: 0.94,         // Slower decay - larger number = faster decay
-    ALPHA_START: 0.8,         // More visible
+    ALPHA_START: 0.4,         // Reduced from 0.8 to 0.4 for less prominent particles
     
     // Life
     LIFE_DECAY: 0.03,         // Longer life
@@ -42,6 +42,15 @@ const PLAYER_CONFIG = {
     // Size
     SIZE_RATIO: 0.15,           // Circle size relative to screen size
     OUTLINE_WIDTH: 2,          // Width of the circle outline
+    OUTLINE_ALPHA: 0.4,        // Added alpha for circle outline
+    FILL_COLOR: 0x000000,     // Inside color of circle
+    FILL_ALPHA: 0,            // Transparency of fill (0 = transparent)
+    INDICATOR_WIDTH: 2,       // Width of direction indicator line
+    INDICATOR_COLOR: 0xFFFFFF, // Color of direction indicator
+    INDICATOR_ALPHA: 0.3,      // Added alpha for direction indicator
+    INDICATOR_LENGTH: 3,      // Length multiplier for direction indicator
+    THUMB_WIDTH: 2,           // Width of thumb line to joystick
+    THUMB_ALPHA: 0.3,         // Added alpha for thumb line
     
     // Movement
     BOUNCE: 0.5,              // Bounce factor when hitting walls
@@ -194,20 +203,20 @@ class GameScene extends Phaser.Scene {
 
         // Remove old joystick zones since we're using the full sides now
 
-        // Create player circles
+        // Create player circles with lighter colors
         const radius = Math.min(w, h) * PLAYER_CONFIG.SIZE_RATIO;
-        this.leftCircle = new PlayerCircle(this, w * PLAYER_CONFIG.LEFT_X_RATIO, h * PLAYER_CONFIG.Y_RATIO, radius, 0x0000ff, true);
-        this.rightCircle = new PlayerCircle(this, w * PLAYER_CONFIG.RIGHT_X_RATIO, h * PLAYER_CONFIG.Y_RATIO, radius, 0xff0000, false);
+        this.leftCircle = new PlayerCircle(this, w * PLAYER_CONFIG.LEFT_X_RATIO, h * PLAYER_CONFIG.Y_RATIO, radius, 0x99bbff, true);  // Lighter blue
+        this.rightCircle = new PlayerCircle(this, w * PLAYER_CONFIG.RIGHT_X_RATIO, h * PLAYER_CONFIG.Y_RATIO, radius, 0xff9999, false);  // Lighter red
 
         // Create sparkle graphics
         this.leftSparkle = this.add.graphics();
         this.rightSparkle = this.add.graphics();
 
-        // Create targets
+        // Create targets (keeping original colors for visibility)
         this.targetBlue = new Target(this, w * TARGET_CONFIG.LEFT_X_RATIO, h * TARGET_CONFIG.Y_RATIO, radius * TARGET_CONFIG.SIZE_RATIO, 0x8888ff, true);
         this.targetRed = new Target(this, w * TARGET_CONFIG.RIGHT_X_RATIO, h * TARGET_CONFIG.Y_RATIO, radius * TARGET_CONFIG.SIZE_RATIO, 0xff8888, false);
 
-        // Add score display
+        // Add score display with reduced opacity
         const textStyle = {
             font: 'bold 200px Arial',
             fill: '#ffffff',
@@ -215,21 +224,23 @@ class GameScene extends Phaser.Scene {
         };
         this.scoreText = this.add.text(w/2, h/2, '0', textStyle)
             .setOrigin(0.5)
-            .setAlpha(0.15)
+            .setAlpha(0.08)  // Reduced from 0.15 to 0.08
             .setDepth(1);
 
-        // Add timer bar background (gray)
+        // Add timer bar background with reduced opacity
         const barWidth = this.scale.width * 0.8;
         const barHeight = 20;
         const barX = this.scale.width * 0.1;
         const barY = 20;
         
         this.timerBarBg = this.add.rectangle(barX, barY, barWidth, barHeight, 0x333333)
-            .setOrigin(0, 0.5);
+            .setOrigin(0, 0.5)
+            .setAlpha(0.3);  // Added reduced alpha
             
-        // Add timer bar (white)
+        // Add timer bar with reduced opacity
         this.timerBar = this.add.rectangle(barX, barY, barWidth, barHeight, 0xffffff)
-            .setOrigin(0, 0.5);
+            .setOrigin(0, 0.5)
+            .setAlpha(0.3);  // Added reduced alpha
             
         // Reset timer
         this.timeLeft = this.GAME_DURATION;
@@ -439,7 +450,7 @@ class PlayerCircle {
         
         // Create the circle
         this.circle = scene.add.arc(x, y, radius, 0, 360)
-            .setStrokeStyle(PLAYER_CONFIG.OUTLINE_WIDTH, color)
+            .setStrokeStyle(PLAYER_CONFIG.OUTLINE_WIDTH, color, PLAYER_CONFIG.OUTLINE_ALPHA)
             .setFillStyle(PLAYER_CONFIG.FILL_COLOR, PLAYER_CONFIG.FILL_ALPHA);
             
         // Add physics
@@ -463,7 +474,7 @@ class PlayerCircle {
     updateThumbLine(pointer) {
         this.thumbLine.clear();
         if (pointer) {
-            this.thumbLine.lineStyle(PLAYER_CONFIG.THUMB_WIDTH, this.color);
+            this.thumbLine.lineStyle(PLAYER_CONFIG.THUMB_WIDTH, this.color, PLAYER_CONFIG.THUMB_ALPHA);
             this.thumbLine.beginPath();
             this.thumbLine.moveTo(this.circle.x, this.circle.y);
             this.thumbLine.lineTo(pointer.x, pointer.y);
@@ -480,7 +491,7 @@ class PlayerCircle {
             const ux = vx / speed;
             const uy = vy / speed;
             const length = (speed / this.scene.MAX_SPEED) * this.circle.radius * PLAYER_CONFIG.INDICATOR_LENGTH;
-            this.indicator.lineStyle(PLAYER_CONFIG.INDICATOR_WIDTH, PLAYER_CONFIG.INDICATOR_COLOR);
+            this.indicator.lineStyle(PLAYER_CONFIG.INDICATOR_WIDTH, PLAYER_CONFIG.INDICATOR_COLOR, PLAYER_CONFIG.INDICATOR_ALPHA);
             this.indicator.beginPath();
             this.indicator.moveTo(this.circle.x, this.circle.y);
             this.indicator.lineTo(this.circle.x + ux * length, this.circle.y + uy * length);

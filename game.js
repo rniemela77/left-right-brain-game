@@ -86,11 +86,17 @@ class MainMenu extends Phaser.Scene {
         const w = this.scale.width;
         const h = this.scale.height;
 
+        // Calculate responsive text sizes
+        const titleSize = Math.min(72, Math.floor(w * 0.08)); // 8% of screen width, max 72px
+        const scoreSize = Math.min(48, Math.floor(w * 0.06)); // 6% of screen width, max 48px
+        const buttonTextSize = Math.min(48, Math.floor(w * 0.06)); // 6% of screen width, max 48px
+
         // Add title
         const titleStyle = {
-            font: 'bold 72px Arial',
+            font: `bold ${titleSize}px Arial`,
             fill: '#ffffff',
-            align: 'center'
+            align: 'center',
+            wordWrap: { width: w * 0.8 } // Wrap text if needed
         };
         this.add.text(w/2, h/3, 'Brain Training Game', titleStyle)
             .setOrigin(0.5);
@@ -98,7 +104,7 @@ class MainMenu extends Phaser.Scene {
         // Show last score if exists
         if (data.lastScore !== undefined) {
             const scoreStyle = {
-                font: 'bold 48px Arial',
+                font: `bold ${scoreSize}px Arial`,
                 fill: '#ffffff',
                 align: 'center'
             };
@@ -108,15 +114,19 @@ class MainMenu extends Phaser.Scene {
 
         // Add play button
         const buttonStyle = {
-            font: 'bold 48px Arial',
+            font: `bold ${buttonTextSize}px Arial`,
             fill: '#ffffff',
             align: 'center'
         };
         
         const playButton = this.add.container(w/2, h/2 + 50);
         
+        // Scale button background based on text size
+        const buttonWidth = Math.max(200, buttonTextSize * 4);
+        const buttonHeight = Math.max(80, buttonTextSize * 1.6);
+        
         // Button background
-        const buttonBg = this.add.rectangle(0, 0, 200, 80, 0x444444)
+        const buttonBg = this.add.rectangle(0, 0, buttonWidth, buttonHeight, 0x444444)
             .setInteractive({ useHandCursor: true })
             .on('pointerover', () => buttonBg.setFillStyle(0x666666))
             .on('pointerout', () => buttonBg.setFillStyle(0x444444))
@@ -130,25 +140,44 @@ class MainMenu extends Phaser.Scene {
             .setOrigin(0.5);
             
         playButton.add([buttonBg, buttonText]);
-
-        // Make the scene responsive
-        this.scale.on('resize', this.resize, this);
     }
 
     resize(gameSize) {
         const w = gameSize.width;
         const h = gameSize.height;
+
+        // Recalculate text sizes
+        const titleSize = Math.min(72, Math.floor(w * 0.08));
+        const scoreSize = Math.min(48, Math.floor(w * 0.06));
+        const buttonTextSize = Math.min(48, Math.floor(w * 0.06));
         
-        // Update positions of menu elements
+        // Update positions and sizes of menu elements
         this.children.list.forEach(child => {
             if (child.type === 'Text') {
                 if (child.text === 'Brain Training Game') {
-                    child.setPosition(w/2, h/3);
+                    child.setPosition(w/2, h/3)
+                        .setStyle({ 
+                            font: `bold ${titleSize}px Arial`,
+                            wordWrap: { width: w * 0.8 }
+                        });
                 } else if (child.text.startsWith('Last Score')) {
-                    child.setPosition(w/2, h/2 - 50);
+                    child.setPosition(w/2, h/2 - 50)
+                        .setStyle({ font: `bold ${scoreSize}px Arial` });
                 }
             } else if (child.type === 'Container') {
                 child.setPosition(w/2, h/2 + 50);
+                
+                // Update button size
+                const buttonWidth = Math.max(200, buttonTextSize * 4);
+                const buttonHeight = Math.max(80, buttonTextSize * 1.6);
+                
+                child.list.forEach(element => {
+                    if (element.type === 'Rectangle') {
+                        element.setSize(buttonWidth, buttonHeight);
+                    } else if (element.type === 'Text') {
+                        element.setStyle({ font: `bold ${buttonTextSize}px Arial` });
+                    }
+                });
             }
         });
     }

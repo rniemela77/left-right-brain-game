@@ -91,19 +91,89 @@ class Particle {
     }
 }
 
+class PlayerCircle {
+    constructor(scene, x, y, radius, color, isLeft) {
+        this.scene = scene;
+        this.isLeft = isLeft;
+        
+        // Create the circle
+        this.circle = scene.add.arc(x, y, radius, 0, 360)
+            .setStrokeStyle(4, color)
+            .setFillStyle(0x000000, 0);
+            
+        // Add physics
+        scene.physics.add.existing(this.circle);
+        this.circle.body.setCircle(radius);
+        this.circle.body.setCollideWorldBounds(true);
+        this.circle.body.setBounce(0.5);
+        
+        // Create graphics for visuals
+        this.indicator = scene.add.graphics();
+        this.thumbLine = scene.add.graphics();
+        
+        // Store color for drawing
+        this.color = color;
+    }
+    
+    setVelocity(x, y) {
+        this.circle.body.setVelocity(x, y);
+    }
+    
+    updateThumbLine(pointer) {
+        this.thumbLine.clear();
+        if (pointer) {
+            this.thumbLine.lineStyle(2, this.color);
+            this.thumbLine.beginPath();
+            this.thumbLine.moveTo(this.circle.x, this.circle.y);
+            this.thumbLine.lineTo(pointer.x, pointer.y);
+            this.thumbLine.strokePath();
+        }
+    }
+    
+    updateIndicator() {
+        this.indicator.clear();
+        const vx = this.circle.body.velocity.x;
+        const vy = this.circle.body.velocity.y;
+        const speed = Math.sqrt(vx * vx + vy * vy);
+        if (speed > 0) {
+            const ux = vx / speed;
+            const uy = vy / speed;
+            const length = (speed / MAX_SPEED) * this.circle.radius * 3;
+            this.indicator.lineStyle(2, 0xffffff);
+            this.indicator.beginPath();
+            this.indicator.moveTo(this.circle.x, this.circle.y);
+            this.indicator.lineTo(this.circle.x + ux * length, this.circle.y + uy * length);
+            this.indicator.strokePath();
+        }
+    }
+    
+    resize(width, height) {
+        const radius = Math.min(width, height) * 0.1;
+        const x = this.isLeft ? width * 0.25 : width * 0.75;
+        const y = height * 0.5;
+        
+        this.circle.setPosition(x, y);
+        this.circle.setRadius(radius);
+        this.circle.body.setCircle(radius);
+    }
+    
+    clearGraphics() {
+        this.indicator.clear();
+        this.thumbLine.clear();
+    }
+}
+
 class Target {
     constructor(scene, x, y, radius, color, isLeft) {
         this.scene = scene;
         this.isLeft = isLeft;
         this.particles = isLeft ? leftParticles : rightParticles;
         this.sparkleGraphics = isLeft ? leftSparkle : rightSparkle;
-        this.baseRadius = radius;
-        this.sizeRatio = TARGET_CONFIG.SIZE_RATIO;
         
         // Create the dot
-        this.dot = scene.add.circle(x, y, this.calculateRadius(), color);
+        this.dot = scene.add.circle(x, y, radius, color);
         scene.physics.add.existing(this.dot);
-        this.dot.body.setCircle(this.calculateRadius());
+        this.dot.body.setCircle(radius);
         this.dot.body.setCollideWorldBounds(true);
         this.dot.body.setBounce(1);
         
@@ -112,17 +182,6 @@ class Target {
         
         // Cooldown for particle spawning
         this.spawnCooldown = 0;
-    }
-
-    calculateRadius() {
-        return this.baseRadius * this.sizeRatio;
-    }
-
-    setSize(ratio) {
-        this.sizeRatio = ratio;
-        const newRadius = this.calculateRadius();
-        this.dot.setRadius(newRadius);
-        this.dot.body.setCircle(newRadius);
     }
     
     update(delta) {
@@ -137,13 +196,11 @@ class Target {
         }
     }
     
-    checkOverlap(circle) {
-        const isOverlapping = this.scene.physics.overlap(circle, this.dot);
-        if (isOverlapping) {
-            if (this.spawnCooldown <= 0) {
-                this.createSparkle();
-                this.spawnCooldown = PARTICLE_CONFIG.SPAWN_COOLDOWN;
-            }
+    checkOverlap(playerCircle) {
+        const isOverlapping = this.scene.physics.overlap(playerCircle.circle, this.dot);
+        if (isOverlapping && this.spawnCooldown <= 0) {
+            this.createSparkle();
+            this.spawnCooldown = PARTICLE_CONFIG.SPAWN_COOLDOWN;
         }
         return isOverlapping;
     }
@@ -162,10 +219,9 @@ class Target {
     }
     
     resize(width, height) {
-        this.baseRadius = Math.min(width, height) * 0.1;
-        const newRadius = this.calculateRadius();
-        this.dot.setRadius(newRadius);
-        this.dot.body.setCircle(newRadius);
+        const dotRadius = Math.min(width, height) * 0.1 * TARGET_CONFIG.SIZE_RATIO;
+        this.dot.setRadius(dotRadius);
+        this.dot.body.setCircle(dotRadius);
         
         // Reposition based on whether it's left or right
         const x = this.isLeft ? width * TARGET_CONFIG.LEFT_X_RATIO : width * TARGET_CONFIG.RIGHT_X_RATIO;
@@ -189,29 +245,16 @@ function create() {
     joystickZones.left = this.add.rectangle(0, zoneY, w / 2, zoneHeight, 0x444444).setOrigin(0);
     joystickZones.right = this.add.rectangle(w / 2, zoneY, w / 2, zoneHeight, 0x444444).setOrigin(0);
 
-    // Create controllable circles
+    // Create player circles
     const radius = Math.min(w, h) * 0.1;
-    leftCircle = this.add.arc(w * 0.25, h * 0.5, radius, 0, 360).setStrokeStyle(4, 0x0000ff).setFillStyle(0x000000, 0);
-    this.physics.add.existing(leftCircle);
-    leftCircle.body.setCircle(radius);
-    leftCircle.body.setCollideWorldBounds(true);
-    leftCircle.body.setBounce(0.5);
+    leftCircle = new PlayerCircle(this, w * 0.25, h * 0.5, radius, 0x0000ff, true);
+    rightCircle = new PlayerCircle(this, w * 0.75, h * 0.5, radius, 0xff0000, false);
 
-    rightCircle = this.add.arc(w * 0.75, h * 0.5, radius, 0, 360).setStrokeStyle(4, 0xff0000).setFillStyle(0x000000, 0);
-    this.physics.add.existing(rightCircle);
-    rightCircle.body.setCircle(radius);
-    rightCircle.body.setCollideWorldBounds(true);
-    rightCircle.body.setBounce(0.5);
-
-    // Direction indicators and graphics
-    leftIndicator = this.add.graphics();
-    rightIndicator = this.add.graphics();
-    leftThumbLine = this.add.graphics();
-    rightThumbLine = this.add.graphics();
+    // Create sparkle graphics
     leftSparkle = this.add.graphics();
     rightSparkle = this.add.graphics();
 
-    // Create targets using the new class
+    // Create targets
     targetBlue = new Target(this, w * TARGET_CONFIG.LEFT_X_RATIO, h * TARGET_CONFIG.Y_RATIO, radius, 0x8888ff, true);
     targetRed = new Target(this, w * TARGET_CONFIG.RIGHT_X_RATIO, h * TARGET_CONFIG.Y_RATIO, radius, 0xff8888, false);
 
@@ -235,10 +278,63 @@ function update() {
     const zoneHeight = h * 0.25;
     const maxDist = zoneHeight / 2;
 
-    // Update score timer
+    // Clear graphics
+    leftCircle.clearGraphics();
+    rightCircle.clearGraphics();
+    leftSparkle.clear();
+    rightSparkle.clear();
+
+    // Reset velocities
+    leftCircle.setVelocity(0, 0);
+    rightCircle.setVelocity(0, 0);
+
+    let leftPointer = null;
+    let rightPointer = null;
+
+    // Process input for joysticks
+    this.input.manager.pointers.forEach(pointer => {
+        if (!pointer.isDown) return;
+        const px = pointer.x;
+        const py = pointer.y;
+
+        // Left joystick
+        if (py > h - zoneHeight && px < w / 2) {
+            const centerX = (w / 2) / 2;
+            const centerY = h - zoneHeight / 2;
+            let dx = px - centerX;
+            let dy = py - centerY;
+            let factorX = Phaser.Math.Clamp(dx / maxDist, -1, 1);
+            let factorY = Phaser.Math.Clamp(dy / maxDist, -1, 1);
+            leftCircle.setVelocity(factorX * MAX_SPEED, factorY * MAX_SPEED);
+            leftPointer = pointer;
+        }
+
+        // Right joystick
+        if (py > h - zoneHeight && px > w / 2) {
+            const centerX = w / 2 + (w / 2) / 2;
+            const centerY = h - zoneHeight / 2;
+            let dx = px - centerX;
+            let dy = py - centerY;
+            let factorX = Phaser.Math.Clamp(dx / maxDist, -1, 1);
+            let factorY = Phaser.Math.Clamp(dy / maxDist, -1, 1);
+            rightCircle.setVelocity(factorX * MAX_SPEED, factorY * MAX_SPEED);
+            rightPointer = pointer;
+        }
+    });
+
+    // Update visuals
+    leftCircle.updateIndicator();
+    rightCircle.updateIndicator();
+    leftCircle.updateThumbLine(leftPointer);
+    rightCircle.updateThumbLine(rightPointer);
+
+    // Update targets
+    targetBlue.update(1/60);
+    targetRed.update(1/60);
+
+    // Update score timer and check overlaps
     scoreTimer += this.game.loop.delta;
     if (scoreTimer >= SCORE_INTERVAL) {
-        // Add points for each contained dot
         let pointsThisInterval = 0;
         if (targetBlue.checkOverlap(leftCircle)) {
             pointsThisInterval++;
@@ -253,100 +349,9 @@ function update() {
         scoreTimer = 0;
     }
 
-    // Update score position on resize
-    scoreText.setPosition(w/2, h/2);
-
-    // Clear graphics
-    leftThumbLine.clear();
-    rightThumbLine.clear();
-    leftIndicator.clear();
-    rightIndicator.clear();
-    leftSparkle.clear();
-    rightSparkle.clear();
-
-    // Reset velocities
-    leftCircle.body.setVelocity(0);
-    rightCircle.body.setVelocity(0);
-
-    let leftPointer = null;
-    let rightPointer = null;
-
-    // Process input for joysticks and track pointers
-    this.input.manager.pointers.forEach(pointer => {
-        if (!pointer.isDown) return;
-        const px = pointer.x;
-        const py = pointer.y;
-
-        // Left joystick
-        if (py > h - zoneHeight && px < w / 2) {
-            const centerX = (w / 2) / 2;
-            const centerY = h - zoneHeight / 2;
-            let dx = px - centerX;
-            let dy = py - centerY;
-            let factorX = Phaser.Math.Clamp(dx / maxDist, -1, 1);
-            let factorY = Phaser.Math.Clamp(dy / maxDist, -1, 1);
-            leftCircle.body.setVelocity(factorX * MAX_SPEED, factorY * MAX_SPEED);
-            leftPointer = { x: px, y: py };
-        }
-
-        // Right joystick
-        if (py > h - zoneHeight && px > w / 2) {
-            const centerX = w / 2 + (w / 2) / 2;
-            const centerY = h - zoneHeight / 2;
-            let dx = px - centerX;
-            let dy = py - centerY;
-            let factorX = Phaser.Math.Clamp(dx / maxDist, -1, 1);
-            let factorY = Phaser.Math.Clamp(dy / maxDist, -1, 1);
-            rightCircle.body.setVelocity(factorX * MAX_SPEED, factorY * MAX_SPEED);
-            rightPointer = { x: px, y: py };
-        }
-    });
-
-    // Draw indicators
-    drawIndicator(leftIndicator, leftCircle);
-    drawIndicator(rightIndicator, rightCircle);
-
-    // Draw thumb lines
-    if (leftPointer) {
-        leftThumbLine.lineStyle(2, 0x0000ff);
-        leftThumbLine.beginPath();
-        leftThumbLine.moveTo(leftCircle.x, leftCircle.y);
-        leftThumbLine.lineTo(leftPointer.x, leftPointer.y);
-        leftThumbLine.strokePath();
-    }
-    if (rightPointer) {
-        rightThumbLine.lineStyle(2, 0xff0000);
-        rightThumbLine.beginPath();
-        rightThumbLine.moveTo(rightCircle.x, rightCircle.y);
-        rightThumbLine.lineTo(rightPointer.x, rightPointer.y);
-        rightThumbLine.strokePath();
-    }
-
-    // Update targets and check overlaps
-    targetBlue.update(1/60);
-    targetRed.update(1/60);
-    targetBlue.checkOverlap(leftCircle);
-    targetRed.checkOverlap(rightCircle);
-
     // Update particles
     leftParticles = updateParticles(leftSparkle, leftParticles);
     rightParticles = updateParticles(rightSparkle, rightParticles);
-}
-
-function drawIndicator(indicator, circle) {
-    const vx = circle.body.velocity.x;
-    const vy = circle.body.velocity.y;
-    const speed = Math.sqrt(vx * vx + vy * vy);
-    if (speed > 0) {
-        const ux = vx / speed;
-        const uy = vy / speed;
-        const length = (speed / MAX_SPEED) * circle.radius * 3;
-        indicator.lineStyle(2, 0xffffff);
-        indicator.beginPath();
-        indicator.moveTo(circle.x, circle.y);
-        indicator.lineTo(circle.x + ux * length, circle.y + uy * length);
-        indicator.strokePath();
-    }
 }
 
 function resize(gameSize) {
@@ -359,14 +364,10 @@ function resize(gameSize) {
     joystickZones.left.setPosition(0, zoneY).setSize(width / 2, zoneHeight);
     joystickZones.right.setPosition(width / 2, zoneY).setSize(width / 2, zoneHeight);
 
-    const radius = Math.min(width, height) * 0.1;
-    leftCircle.setPosition(width * 0.25, height * 0.5);
-    leftCircle.setRadius(radius);
-    leftCircle.body.setCircle(radius);
-    rightCircle.setPosition(width * 0.75, height * 0.5);
-    rightCircle.setRadius(radius);
-    rightCircle.body.setCircle(radius);
-
+    // Resize circles
+    leftCircle.resize(width, height);
+    rightCircle.resize(width, height);
+    
     // Resize targets
     targetBlue.resize(width, height);
     targetRed.resize(width, height);

@@ -25,7 +25,7 @@ const PARTICLE_CONFIG = {
 
 const TARGET_CONFIG = {
     // Size as a fraction of the player circle radius
-    SIZE_RATIO: 0.1,
+    SIZE_RATIO: 0.15,
     // Base positions
     LEFT_X_RATIO: 0.25,
     RIGHT_X_RATIO: 0.75,
@@ -561,9 +561,11 @@ class Target {
                 // Add time bonus when dot takes damage
                 this.scene.addTimeBonus();
                 
-                // Update dot size based on health
+                // Update dot size based on health with minimum size
                 const healthRatio = this.health / this.maxHealth;
-                const newRadius = this.baseRadius * healthRatio;
+                // Linear interpolation between MIN_DOT_SIZE and baseRadius
+                const newRadius = TARGET_CONFIG.MIN_DOT_SIZE + 
+                    (this.baseRadius - TARGET_CONFIG.MIN_DOT_SIZE) * healthRatio;
                 this.dot.setRadius(newRadius);
                 this.dot.body.setCircle(newRadius);
                 
@@ -581,7 +583,7 @@ class Target {
         // Reset health
         this.health = this.maxHealth;
         
-        // Reset size
+        // Reset size to full size
         this.dot.setRadius(this.baseRadius);
         this.dot.body.setCircle(this.baseRadius);
         
@@ -619,7 +621,7 @@ class Target {
     }
     
     resize(width, height) {
-        const dotRadius = Math.min(width, height) * 0.1 * TARGET_CONFIG.SIZE_RATIO;
+        const dotRadius = Math.min(width, height) * TARGET_CONFIG.SIZE_RATIO;
         this.baseRadius = dotRadius; // Update base radius
         
         // Set current radius based on health with minimum size

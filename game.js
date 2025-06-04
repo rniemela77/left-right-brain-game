@@ -21,6 +21,73 @@ let leftSparkle, rightSparkle;
 const MAX_SPEED = 300;
 const MIN_TARGET_SPEED = 20;
 const MAX_TARGET_SPEED = 80;
+let leftParticles = [];
+let rightParticles = [];
+let leftSpawnCooldown = 0;
+let rightSpawnCooldown = 0;
+
+// Particle system configuration
+const PARTICLE_CONFIG = {
+    // Spawn settings
+    SPAWN_COOLDOWN: 0.03,        // Time between particle bursts
+    PARTICLES_PER_BURST: 8,      // Base number of particles per burst
+    PARTICLES_PER_DIRECTION: 2,  // How many particles to spawn at each base angle
+    
+    // Movement
+    BASE_SPEED: 60,             // Reduced from 80 for tighter effect
+    SPEED_VARIANCE: 20,         // Reduced from 40 for more consistent movement
+    ANGLE_SPREAD: 0.3,          // Reduced from 0.5 for tighter spread
+    
+    // Oscillation
+    OSC_SPEED_MIN: 5,          
+    OSC_SPEED_VARIANCE: 5,     
+    OSC_MAGNITUDE: 0.3,        // Reduced from 0.5 for less weaving
+    
+    // Appearance
+    SIZE_MIN: 1,               // Reduced from 2 for smaller particles
+    SIZE_VARIANCE: 1.5,        // Reduced from 3 for more consistent sizes
+    SIZE_DECAY: 0.96,          // Slightly faster decay
+    MIN_SIZE: 0.3,             // Reduced from 0.5 for smaller end size
+    
+    // Life and fade
+    LIFE_DECAY: 0.02,          // Slightly faster decay
+    ALPHA_MULTIPLIER: 2,       
+    
+    // Color
+    SHIMMER_MAGNITUDE: 0.2,    
+    COLOR_VARIANCE: 40,        
+};
+
+class Particle {
+    constructor(x, y, angle, speed) {
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        this.baseSpeed = speed;
+        this.speed = speed * (0.5 + Math.random() * 0.5);
+        this.size = PARTICLE_CONFIG.SIZE_MIN + Math.random() * PARTICLE_CONFIG.SIZE_VARIANCE;
+        this.life = 1;
+        this.oscillation = Math.random() * Math.PI * 2;
+        this.oscillationSpeed = PARTICLE_CONFIG.OSC_SPEED_MIN + Math.random() * PARTICLE_CONFIG.OSC_SPEED_VARIANCE;
+    }
+
+    update(delta) {
+        this.oscillation += this.oscillationSpeed * delta;
+        
+        const perpAngle = this.angle + Math.PI/2;
+        const oscillationAmount = Math.sin(this.oscillation) * PARTICLE_CONFIG.OSC_MAGNITUDE;
+        
+        this.x += (Math.cos(this.angle) * this.speed + 
+                   Math.cos(perpAngle) * oscillationAmount * this.baseSpeed) * delta;
+        this.y += (Math.sin(this.angle) * this.speed + 
+                   Math.sin(perpAngle) * oscillationAmount * this.baseSpeed) * delta;
+        
+        this.life -= PARTICLE_CONFIG.LIFE_DECAY;
+        this.alpha = Math.min(1, this.life * PARTICLE_CONFIG.ALPHA_MULTIPLIER);
+        this.size = Math.max(PARTICLE_CONFIG.MIN_SIZE, this.size * PARTICLE_CONFIG.SIZE_DECAY);
+        return this.life > 0;
+    }
+}
 
 function preload() {
     // No assets needed
@@ -154,13 +221,21 @@ function update() {
         rightThumbLine.strokePath();
     }
 
-    // Check overlap via Phaser's overlap
+    // Update cooldowns
+    leftSpawnCooldown = Math.max(0, leftSpawnCooldown - (1/60));
+    rightSpawnCooldown = Math.max(0, rightSpawnCooldown - (1/60));
+
+    // Update overlap checks
     if (this.physics.overlap(leftCircle, targetBlue)) {
-        drawEnhancedSparkle(leftSparkle, targetBlue.x, targetBlue.y, leftCircle.radius * 0.4);
+        drawEnhancedSparkle(leftSparkle, targetBlue.x, targetBlue.y, leftCircle.radius * 0.4, true);
     }
     if (this.physics.overlap(rightCircle, targetRed)) {
-        drawEnhancedSparkle(rightSparkle, targetRed.x, targetRed.y, rightCircle.radius * 0.4);
+        drawEnhancedSparkle(rightSparkle, targetRed.x, targetRed.y, rightCircle.radius * 0.4, false);
     }
+
+    // Update and draw particles
+    leftParticles = updateParticles(leftSparkle, leftParticles, 0x8888ff);
+    rightParticles = updateParticles(rightSparkle, rightParticles, 0xff8888);
 }
 
 function drawIndicator(indicator, circle) {
@@ -179,15 +254,15 @@ function drawIndicator(indicator, circle) {
     }
 }
 
-function drawEnhancedSparkle(graphics, x, y, spread) {
-    graphics.fillStyle(0xFFD700, 1);
-    for (let i = 0; i < 10; i++) {
-        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-        const distance = Phaser.Math.FloatBetween(0, spread);
-        const sx = x + Math.cos(angle) * distance;
-        const sy = y + Math.sin(angle) * distance;
-        const size = Phaser.Math.FloatBetween(spread * 0.1, spread * 0.3);
-        graphics.fillCircle(sx, sy, size);
+function drawEnhancedSparkle(graphics, x, y, spread, isLeft) {
+    const cooldown = isLeft ? leftSpawnCooldown : rightSpawnCooldown;
+    if (cooldown <= 0) {
+        createParticles(x, y, isLeft);
+        if (isLeft) {
+            leftSpawnCooldown = PARTICLE_CONFIG.SPAWN_COOLDOWN;
+        } else {
+            rightSpawnCooldown = PARTICLE_CONFIG.SPAWN_COOLDOWN;
+        }
     }
 }
 
@@ -224,4 +299,37 @@ function resize(gameSize) {
     targetRed.setPosition(width * 0.75, height * 0.25);
     targetRed.setRadius(dotRadius);
     targetRed.body.setCircle(dotRadius);
+}
+
+function createParticles(x, y, isLeft) {
+    const particles = isLeft ? leftParticles : rightParticles;
+    const numParticles = PARTICLE_CONFIG.PARTICLES_PER_BURST;
+    
+    for (let i = 0; i < numParticles; i++) {
+        const baseAngle = (i / numParticles) * Math.PI * 2;
+        for (let j = 0; j < PARTICLE_CONFIG.PARTICLES_PER_DIRECTION; j++) {
+            const angle = baseAngle + (Math.random() - 0.5) * PARTICLE_CONFIG.ANGLE_SPREAD;
+            const speed = PARTICLE_CONFIG.BASE_SPEED + Math.random() * PARTICLE_CONFIG.SPEED_VARIANCE;
+            particles.push(new Particle(x, y, angle, speed));
+        }
+    }
+}
+
+function updateParticles(graphics, particles, color) {
+    graphics.clear();
+    particles = particles.filter(particle => {
+        if (particle.update(1/60)) {
+            const shimmer = Math.sin(particle.oscillation) * PARTICLE_CONFIG.SHIMMER_MAGNITUDE;
+            const r = 0xFF;
+            const g = Math.floor(0xD7 + shimmer * PARTICLE_CONFIG.COLOR_VARIANCE);
+            const b = Math.floor(shimmer * PARTICLE_CONFIG.COLOR_VARIANCE);
+            const color = (r << 16) | (g << 8) | b;
+            
+            graphics.fillStyle(color, particle.alpha);
+            graphics.fillCircle(particle.x, particle.y, particle.size);
+            return true;
+        }
+        return false;
+    });
+    return particles;
 } 

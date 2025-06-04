@@ -516,6 +516,12 @@ class Target {
         this.health = this.maxHealth;
         this.lastHealthDrain = 0;
         
+        // Speed scaling
+        this.speedMultiplier = 1;
+        this.respawnCount = 0;
+        this.SPEED_INCREASE_PER_RESPAWN = 0.2; // 20% faster each respawn
+        this.baseSpeed = Phaser.Math.FloatBetween(this.scene.MIN_TARGET_SPEED, this.scene.MAX_TARGET_SPEED);
+        
         // Create the dot
         this.dot = scene.add.circle(x, y, radius, color);
         scene.physics.add.existing(this.dot);
@@ -529,7 +535,56 @@ class Target {
         // Cooldown for particle spawning
         this.spawnCooldown = 0;
     }
-    
+
+    setRandomVelocity() {
+        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+        const currentSpeed = this.baseSpeed * this.speedMultiplier;
+        
+        this.dot.body.setVelocity(
+            Math.cos(angle) * currentSpeed,
+            Math.sin(angle) * currentSpeed
+        );
+    }
+
+    respawn() {
+        // Increment respawn counter and update speed
+        this.respawnCount++;
+        this.speedMultiplier = 1 + (this.respawnCount * this.SPEED_INCREASE_PER_RESPAWN);
+        
+        // Get a new base speed that's at least as fast as the previous one
+        const minNewBaseSpeed = this.baseSpeed;
+        this.baseSpeed = Phaser.Math.FloatBetween(
+            Math.max(this.scene.MIN_TARGET_SPEED, minNewBaseSpeed),
+            Math.max(this.scene.MAX_TARGET_SPEED, minNewBaseSpeed)
+        );
+        
+        // Reset health
+        this.health = this.maxHealth;
+        
+        // Reset size to full size
+        this.dot.setRadius(this.baseRadius);
+        this.dot.body.setCircle(this.baseRadius);
+        
+        // Find new random position
+        const width = this.scene.scale.width;
+        const height = this.scene.scale.height;
+        const margin = this.baseRadius * 2;
+        
+        // Define spawn area based on which side (left/right) the dot belongs to
+        const minX = this.isLeft ? margin : width/2 + margin;
+        const maxX = this.isLeft ? width/2 - margin : width - margin;
+        const minY = margin;
+        const maxY = height - margin;
+        
+        // Set new random position
+        const newX = Phaser.Math.Between(minX, maxX);
+        const newY = Phaser.Math.Between(minY, maxY);
+        this.dot.setPosition(newX, newY);
+        
+        // Set new random velocity with increased speed
+        this.setRandomVelocity();
+    }
+
     update(delta) {
         // Update spawn cooldown
         this.spawnCooldown = Math.max(0, this.spawnCooldown - delta);
@@ -537,7 +592,8 @@ class Target {
         // Check if we need to randomize velocity (if moving too slow)
         const velocity = this.dot.body.velocity;
         const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
-        if (speed < this.scene.MIN_TARGET_SPEED) {
+        const minSpeed = this.baseSpeed * this.speedMultiplier * 0.9; // Allow slight variation
+        if (speed < minSpeed) {
             this.setRandomVelocity();
         }
     }
@@ -579,45 +635,8 @@ class Target {
         return isOverlapping;
     }
     
-    respawn() {
-        // Reset health
-        this.health = this.maxHealth;
-        
-        // Reset size to full size
-        this.dot.setRadius(this.baseRadius);
-        this.dot.body.setCircle(this.baseRadius);
-        
-        // Find new random position
-        const width = this.scene.scale.width;
-        const height = this.scene.scale.height;
-        const margin = this.baseRadius * 2; // Keep away from edges
-        
-        // Define spawn area based on which side (left/right) the dot belongs to
-        const minX = this.isLeft ? margin : width/2 + margin;
-        const maxX = this.isLeft ? width/2 - margin : width - margin;
-        const minY = margin;
-        const maxY = height - margin;
-        
-        // Set new random position
-        const newX = Phaser.Math.Between(minX, maxX);
-        const newY = Phaser.Math.Between(minY, maxY);
-        this.dot.setPosition(newX, newY);
-        
-        // Set new random velocity
-        this.setRandomVelocity();
-    }
-    
     createSparkle() {
         this.scene.createParticles(this.dot.x, this.dot.y, this.isLeft, this.color);
-    }
-    
-    setRandomVelocity() {
-        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-        const speed = Phaser.Math.FloatBetween(this.scene.MIN_TARGET_SPEED, this.scene.MAX_TARGET_SPEED);
-        this.dot.body.setVelocity(
-            Math.cos(angle) * speed,
-            Math.sin(angle) * speed
-        );
     }
     
     resize(width, height) {

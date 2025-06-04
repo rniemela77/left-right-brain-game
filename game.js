@@ -1,0 +1,227 @@
+const config = {
+    type: Phaser.AUTO,
+    scale: {
+        mode: Phaser.Scale.RESIZE,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    },
+    backgroundColor: '#222222',
+    physics: { default: 'arcade', arcade: { debug: false } },
+    scene: { preload: preload, create: create, update: update }
+};
+
+const game = new Phaser.Game(config);
+let leftCircle, rightCircle;
+let targetBlue, targetRed;
+let joystickZones = {};
+let leftIndicator, rightIndicator;
+let leftThumbLine, rightThumbLine;
+let leftSparkle, rightSparkle;
+const MAX_SPEED = 300;
+const MIN_TARGET_SPEED = 20;
+const MAX_TARGET_SPEED = 80;
+
+function preload() {
+    // No assets needed
+}
+
+function create() {
+    this.input.addPointer(1);
+    const w = this.scale.width;
+    const h = this.scale.height;
+
+    // Define joystick areas
+    const zoneHeight = h * 0.25;
+    const zoneY = h - zoneHeight;
+    joystickZones.left = this.add.rectangle(0, zoneY, w / 2, zoneHeight, 0x444444).setOrigin(0);
+    joystickZones.right = this.add.rectangle(w / 2, zoneY, w / 2, zoneHeight, 0x444444).setOrigin(0);
+
+    // Create controllable circle outlines (slightly larger)
+    const radius = Math.min(w, h) * 0.1;
+    leftCircle = this.add.arc(w * 0.25, h * 0.5, radius, 0, 360).setStrokeStyle(4, 0x0000ff).setFillStyle(0x000000, 0);
+    this.physics.add.existing(leftCircle);
+    leftCircle.body.setCircle(radius);
+    leftCircle.body.setCollideWorldBounds(true);
+    leftCircle.body.setBounce(0.5);
+
+    rightCircle = this.add.arc(w * 0.75, h * 0.5, radius, 0, 360).setStrokeStyle(4, 0xff0000).setFillStyle(0x000000, 0);
+    this.physics.add.existing(rightCircle);
+    rightCircle.body.setCircle(radius);
+    rightCircle.body.setCollideWorldBounds(true);
+    rightCircle.body.setBounce(0.5);
+
+    // Direction indicators as graphics
+    leftIndicator = this.add.graphics();
+    rightIndicator = this.add.graphics();
+    // Thumb connection lines
+    leftThumbLine = this.add.graphics();
+    rightThumbLine = this.add.graphics();
+    // Sparkle graphics
+    leftSparkle = this.add.graphics();
+    rightSparkle = this.add.graphics();
+
+    // Create moving target dots
+    const dotRadius = radius * 0.3;
+    targetBlue = this.add.circle(w * 0.25, h * 0.25, dotRadius, 0x8888ff);
+    this.physics.add.existing(targetBlue);
+    targetBlue.body.setCircle(dotRadius);
+    targetBlue.body.setCollideWorldBounds(true);
+    targetBlue.body.setBounce(1);
+
+    targetRed = this.add.circle(w * 0.75, h * 0.25, dotRadius, 0xff8888);
+    this.physics.add.existing(targetRed);
+    targetRed.body.setCircle(dotRadius);
+    targetRed.body.setCollideWorldBounds(true);
+    targetRed.body.setBounce(1);
+
+    // Assign initial random velocities to targets
+    setRandomVelocity(targetBlue);
+    setRandomVelocity(targetRed);
+
+    this.scale.on('resize', resize, this);
+}
+
+function update() {
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const zoneHeight = h * 0.25;
+    const maxDist = zoneHeight / 2;
+
+    // Clear graphics
+    leftThumbLine.clear();
+    rightThumbLine.clear();
+    leftIndicator.clear();
+    rightIndicator.clear();
+    leftSparkle.clear();
+    rightSparkle.clear();
+
+    // Reset velocities
+    leftCircle.body.setVelocity(0);
+    rightCircle.body.setVelocity(0);
+
+    let leftPointer = null;
+    let rightPointer = null;
+
+    // Process input for joysticks and track pointers
+    this.input.manager.pointers.forEach(pointer => {
+        if (!pointer.isDown) return;
+        const px = pointer.x;
+        const py = pointer.y;
+
+        // Left joystick
+        if (py > h - zoneHeight && px < w / 2) {
+            const centerX = (w / 2) / 2;
+            const centerY = h - zoneHeight / 2;
+            let dx = px - centerX;
+            let dy = py - centerY;
+            let factorX = Phaser.Math.Clamp(dx / maxDist, -1, 1);
+            let factorY = Phaser.Math.Clamp(dy / maxDist, -1, 1);
+            leftCircle.body.setVelocity(factorX * MAX_SPEED, factorY * MAX_SPEED);
+            leftPointer = { x: px, y: py };
+        }
+
+        // Right joystick
+        if (py > h - zoneHeight && px > w / 2) {
+            const centerX = w / 2 + (w / 2) / 2;
+            const centerY = h - zoneHeight / 2;
+            let dx = px - centerX;
+            let dy = py - centerY;
+            let factorX = Phaser.Math.Clamp(dx / maxDist, -1, 1);
+            let factorY = Phaser.Math.Clamp(dy / maxDist, -1, 1);
+            rightCircle.body.setVelocity(factorX * MAX_SPEED, factorY * MAX_SPEED);
+            rightPointer = { x: px, y: py };
+        }
+    });
+
+    // Draw direction indicators
+    drawIndicator(leftIndicator, leftCircle);
+    drawIndicator(rightIndicator, rightCircle);
+
+    // Draw thumb connection lines
+    if (leftPointer) {
+        leftThumbLine.lineStyle(2, 0x0000ff);
+        leftThumbLine.beginPath();
+        leftThumbLine.moveTo(leftCircle.x, leftCircle.y);
+        leftThumbLine.lineTo(leftPointer.x, leftPointer.y);
+        leftThumbLine.strokePath();
+    }
+    if (rightPointer) {
+        rightThumbLine.lineStyle(2, 0xff0000);
+        rightThumbLine.beginPath();
+        rightThumbLine.moveTo(rightCircle.x, rightCircle.y);
+        rightThumbLine.lineTo(rightPointer.x, rightPointer.y);
+        rightThumbLine.strokePath();
+    }
+
+    // Check overlap via Phaser's overlap
+    if (this.physics.overlap(leftCircle, targetBlue)) {
+        drawEnhancedSparkle(leftSparkle, targetBlue.x, targetBlue.y, leftCircle.radius * 0.4);
+    }
+    if (this.physics.overlap(rightCircle, targetRed)) {
+        drawEnhancedSparkle(rightSparkle, targetRed.x, targetRed.y, rightCircle.radius * 0.4);
+    }
+}
+
+function drawIndicator(indicator, circle) {
+    const vx = circle.body.velocity.x;
+    const vy = circle.body.velocity.y;
+    const speed = Math.sqrt(vx * vx + vy * vy);
+    if (speed > 0) {
+        const ux = vx / speed;
+        const uy = vy / speed;
+        const length = (speed / MAX_SPEED) * circle.radius * 3;
+        indicator.lineStyle(2, 0xffffff);
+        indicator.beginPath();
+        indicator.moveTo(circle.x, circle.y);
+        indicator.lineTo(circle.x + ux * length, circle.y + uy * length);
+        indicator.strokePath();
+    }
+}
+
+function drawEnhancedSparkle(graphics, x, y, spread) {
+    graphics.fillStyle(0xFFD700, 1);
+    for (let i = 0; i < 10; i++) {
+        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+        const distance = Phaser.Math.FloatBetween(0, spread);
+        const sx = x + Math.cos(angle) * distance;
+        const sy = y + Math.sin(angle) * distance;
+        const size = Phaser.Math.FloatBetween(spread * 0.1, spread * 0.3);
+        graphics.fillCircle(sx, sy, size);
+    }
+}
+
+function setRandomVelocity(target) {
+    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+    const speed = Phaser.Math.FloatBetween(MIN_TARGET_SPEED, MAX_TARGET_SPEED);
+    target.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+    target.body.setCollideWorldBounds(true);
+    target.body.onWorldBounds = true;
+}
+
+function resize(gameSize) {
+    const width = gameSize.width;
+    const height = gameSize.height;
+    this.cameras.resize(width, height);
+
+    const zoneHeight = height * 0.25;
+    const zoneY = height - zoneHeight;
+    joystickZones.left.setPosition(0, zoneY).setSize(width / 2, zoneHeight);
+    joystickZones.right.setPosition(width / 2, zoneY).setSize(width / 2, zoneHeight);
+
+    const radius = Math.min(width, height) * 0.1;
+    leftCircle.setPosition(width * 0.25, height * 0.5);
+    leftCircle.setRadius(radius);
+    leftCircle.body.setCircle(radius);
+    rightCircle.setPosition(width * 0.75, height * 0.5);
+    rightCircle.setRadius(radius);
+    rightCircle.body.setCircle(radius);
+
+    const dotRadius = radius * 0.3;
+    targetBlue.setPosition(width * 0.25, height * 0.25);
+    targetBlue.setRadius(dotRadius);
+    targetBlue.body.setCircle(dotRadius);
+    targetRed.setPosition(width * 0.75, height * 0.25);
+    targetRed.setRadius(dotRadius);
+    targetRed.body.setCircle(dotRadius);
+} 

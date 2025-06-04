@@ -88,47 +88,84 @@ class MainMenu extends Phaser.Scene {
 
         // Calculate responsive text sizes
         const titleSize = Math.min(72, Math.floor(w * 0.08));
-        const instructionsSize = Math.min(24, Math.floor(w * 0.03)); // Smaller text for instructions
+        const instructionsSize = Math.min(24, Math.floor(w * 0.03));
         const scoreSize = Math.min(48, Math.floor(w * 0.06));
         const buttonTextSize = Math.min(48, Math.floor(w * 0.06));
+        const creditsSize = Math.min(32, Math.floor(w * 0.04)); // Increased size
 
         // Add title with improved text settings
         const titleStyle = {
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
             fontSize: `${titleSize}px`,
             fontStyle: 'bold',
-            color: '#ffffff',
             align: 'center',
-            wordWrap: { width: w * 0.8 },
-            resolution: 2,           // Increased resolution for sharper text
-            antialias: true,        // Enable antialiasing
-            padding: { x: 4, y: 4 } // Add slight padding to prevent text clipping
+            resolution: 2,
+            antialias: true,
+            padding: { x: 4, y: 4 }
         };
-        this.add.text(w/2, h/4, 'Brain Training Game', titleStyle)
-            .setOrigin(0.5);
+
+        // Add the two parts of the title centered together
+        const hemisphereText = this.add.text(0, 0, 'Hemisphere', { 
+            ...titleStyle,
+            color: '#99bbff' // Light blue to match left side
+        })
+        .setOrigin(0, 0.5);
+
+        const hunterText = this.add.text(hemisphereText.width, 0, 'Hunter', { 
+            ...titleStyle,
+            color: '#ff9999' // Light red to match right side
+        })
+        .setOrigin(0, 0.5);
+
+        // Create a container to hold both text objects
+        const titleContainer = this.add.container(0, 0, [hemisphereText, hunterText]);
+        const totalWidth = hemisphereText.width + hunterText.width;
+        titleContainer.setPosition(w/2 - totalWidth/2, h/4);
+
+        // Update the resize handler
+        this.titleContainer = titleContainer; // Store reference for resize
 
         // Add instructions
         const instructionsStyle = {
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
             fontSize: `${instructionsSize}px`,
             fontStyle: 'bold',
-            color: '#ffffff',
             align: 'center',
             resolution: 2,
             antialias: true,
-            padding: { x: 4, y: 4 },
-            lineSpacing: 10
+            padding: { x: 4, y: 4 }
         };
 
-        const instructions = [
-            'Touch and drag on either side of the screen',
-            'Left joystick: Catch the blue dots',
-            'Right joystick: Catch the red dots',
-            'Dots get faster each time they respawn',
-            'Timer extends when dots take damage'
-        ];
+        const lineHeight = instructionsSize * 1.4; // Line height for spacing
+        const startY = h/2 - 80; // Start higher to accommodate all lines
 
-        const instructionsText = this.add.text(w/2, h/2 - 50, instructions, instructionsStyle)
+        // First line
+        this.add.text(w/2, startY, 'Touch and drag on either side of the screen', 
+            { ...instructionsStyle, color: '#ffffff' })
+            .setOrigin(0.5)
+            .setAlpha(0.9);
+
+        // Blue joystick line
+        this.add.text(w/2, startY + lineHeight, 'Left joystick: Catch the blue dots', 
+            { ...instructionsStyle, color: '#99bbff' })
+            .setOrigin(0.5)
+            .setAlpha(0.9);
+
+        // Red joystick line
+        this.add.text(w/2, startY + lineHeight * 2, 'Right joystick: Catch the red dots', 
+            { ...instructionsStyle, color: '#ff9999' })
+            .setOrigin(0.5)
+            .setAlpha(0.9);
+
+        // Fourth line
+        this.add.text(w/2, startY + lineHeight * 3, 'Dots get faster each time they respawn', 
+            { ...instructionsStyle, color: '#ffffff' })
+            .setOrigin(0.5)
+            .setAlpha(0.9);
+
+        // Fifth line
+        this.add.text(w/2, startY + lineHeight * 4, 'Timer extends when dots take damage', 
+            { ...instructionsStyle, color: '#ffffff' })
             .setOrigin(0.5)
             .setAlpha(0.9);
 
@@ -181,6 +218,26 @@ class MainMenu extends Phaser.Scene {
             .setOrigin(0.5);
             
         playButton.add([buttonBg, buttonText]);
+
+        // Add credits at the bottom
+        const creditsStyle = {
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+            fontSize: `${creditsSize}px`,
+            fontStyle: 'normal',
+            color: '#ffffff',
+            align: 'center',
+            resolution: 2,
+            antialias: true,
+            padding: { x: 4, y: 4 }
+        };
+
+        this.add.text(w/2, h - 80, 'Created by Robert Niemela', creditsStyle)
+            .setOrigin(0.5)
+            .setAlpha(0.7);
+
+        this.add.text(w/2, h - 40, 'Email: rvniemela@hotmail.com', creditsStyle)
+            .setOrigin(0.5)
+            .setAlpha(0.7);
     }
 
     resize(gameSize) {
@@ -192,34 +249,69 @@ class MainMenu extends Phaser.Scene {
         const instructionsSize = Math.min(24, Math.floor(w * 0.03));
         const scoreSize = Math.min(48, Math.floor(w * 0.06));
         const buttonTextSize = Math.min(48, Math.floor(w * 0.06));
+        const creditsSize = Math.min(32, Math.floor(w * 0.04));
         
+        const lineHeight = instructionsSize * 1.4;
+        const startY = h/2 - 80;
+
         // Update positions and sizes of menu elements
         this.children.list.forEach(child => {
-            if (child.type === 'Text') {
-                if (child.text === 'Brain Training Game') {
-                    child.setPosition(w/2, h/4)
-                        .setStyle({ 
-                            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
-                            fontSize: `${titleSize}px`,
-                            wordWrap: { width: w * 0.8 }
-                        });
-                } else if (child.text.startsWith('Last Score')) {
+            if (child.type === 'Container' && child.list.length === 2 && 
+                child.list[0].text === 'Hemisphere' && child.list[1].text === 'Hunter') {
+                // Update title container
+                const hemisphereText = child.list[0];
+                const hunterText = child.list[1];
+                
+                // Update text styles
+                hemisphereText.setStyle({ 
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+                    fontSize: `${titleSize}px`,
+                    color: '#99bbff'
+                });
+                hunterText.setStyle({ 
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+                    fontSize: `${titleSize}px`,
+                    color: '#ff9999'
+                });
+
+                // Update positions
+                hemisphereText.setPosition(0, 0);
+                hunterText.setPosition(hemisphereText.width, 0);
+                
+                // Recenter container
+                const totalWidth = hemisphereText.width + hunterText.width;
+                child.setPosition(w/2 - totalWidth/2, h/4);
+            } else if (child.type === 'Text') {
+                if (child.text.startsWith('Last Score')) {
                     child.setPosition(w/2, h/2 + 50)
                         .setStyle({ 
                             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
                             fontSize: `${scoreSize}px`
                         });
-                } else if (Array.isArray(child.text)) { // Instructions text
-                    child.setPosition(w/2, h/2 - 50)
+                } else if (child.text.startsWith('Created by') || child.text.startsWith('Email:')) {
+                    const yPos = child.text.startsWith('Created by') ? h - 80 : h - 40;
+                    child.setPosition(w/2, yPos)
                         .setStyle({
                             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
-                            fontSize: `${instructionsSize}px`,
-                            lineSpacing: 10,
-                            wordWrap: { width: w * 0.9 }
+                            fontSize: `${creditsSize}px`
+                        });
+                } else {
+                    // Handle instruction lines
+                    let lineIndex = 0;
+                    if (child.text === 'Touch and drag on either side of the screen to move') lineIndex = 0;
+                    else if (child.text === 'Left joystick: Catch the blue dots') lineIndex = 1;
+                    else if (child.text === 'Right joystick: Catch the red dots') lineIndex = 2;
+                    else if (child.text === 'Dots get faster each time they respawn') lineIndex = 3;
+                    else if (child.text === 'Timer extends when dots take damage') lineIndex = 4;
+
+                    child.setPosition(w/2, startY + lineHeight * lineIndex)
+                        .setStyle({
+                            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+                            fontSize: `${instructionsSize}px`
                         });
                 }
             } else if (child.type === 'Container') {
-                child.setPosition(w/2, h/2 + 150); // Moved down for instructions
+                child.setPosition(w/2, h/2 + 150);
                 
                 // Update button size
                 const buttonWidth = Math.max(200, buttonTextSize * 4);

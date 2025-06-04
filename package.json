@@ -1,10 +1,30 @@
 {
+  "name": "left-right-brain-game",
+  "version": "1.0.0",
+  "description": "A fast-paced, dual-joystick game for mobile touchscreens",
+  "main": "game.js",
   "scripts": {
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d .",
+    "build": "echo 'No build step required'",
     "start": "browser-sync start --config bs-config.js",
     "dev": "http-server -c-1 ."
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rvniemela/left-right-brain-game.git"
+  },
+  "keywords": [
+    "game",
+    "phaser",
+    "mobile",
+    "touchscreen"
+  ],
+  "author": "Robert Niemela",
+  "homepage": "https://rvniemela.github.io/left-right-brain-game",
   "devDependencies": {
     "browser-sync": "^3.0.3",
-    "phaser": "^3.86.0"
+    "phaser": "^3.86.0",
+    "gh-pages": "^6.1.1"
   }
 }

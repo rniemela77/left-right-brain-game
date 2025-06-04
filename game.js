@@ -58,6 +58,15 @@ const PARTICLE_CONFIG = {
     COLOR_VARIANCE: 40,        
 };
 
+const TARGET_CONFIG = {
+    // Size as a fraction of the player circle radius
+    SIZE_RATIO: 0.1,
+    // Base positions
+    LEFT_X_RATIO: 0.25,
+    RIGHT_X_RATIO: 0.75,
+    Y_RATIO: 0.25
+};
+
 class Particle {
     constructor(x, y, angle, speed) {
         this.x = x;
@@ -89,6 +98,89 @@ class Particle {
     }
 }
 
+class Target {
+    constructor(scene, x, y, radius, color, isLeft) {
+        this.scene = scene;
+        this.isLeft = isLeft;
+        this.particles = isLeft ? leftParticles : rightParticles;
+        this.sparkleGraphics = isLeft ? leftSparkle : rightSparkle;
+        this.baseRadius = radius;
+        this.sizeRatio = TARGET_CONFIG.SIZE_RATIO;
+        
+        // Create the dot
+        this.dot = scene.add.circle(x, y, this.calculateRadius(), color);
+        scene.physics.add.existing(this.dot);
+        this.dot.body.setCircle(this.calculateRadius());
+        this.dot.body.setCollideWorldBounds(true);
+        this.dot.body.setBounce(1);
+        
+        // Initialize movement
+        this.setRandomVelocity();
+        
+        // Cooldown for particle spawning
+        this.spawnCooldown = 0;
+    }
+
+    calculateRadius() {
+        return this.baseRadius * this.sizeRatio;
+    }
+
+    setSize(ratio) {
+        this.sizeRatio = ratio;
+        const newRadius = this.calculateRadius();
+        this.dot.setRadius(newRadius);
+        this.dot.body.setCircle(newRadius);
+    }
+    
+    update(delta) {
+        // Update spawn cooldown
+        this.spawnCooldown = Math.max(0, this.spawnCooldown - delta);
+        
+        // Check if we need to randomize velocity (if moving too slow)
+        const velocity = this.dot.body.velocity;
+        const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+        if (speed < MIN_TARGET_SPEED) {
+            this.setRandomVelocity();
+        }
+    }
+    
+    checkOverlap(circle) {
+        if (this.scene.physics.overlap(circle, this.dot)) {
+            if (this.spawnCooldown <= 0) {
+                this.createSparkle();
+                this.spawnCooldown = PARTICLE_CONFIG.SPAWN_COOLDOWN;
+            }
+            return true;
+        }
+        return false;
+    }
+    
+    createSparkle() {
+        createParticles(this.dot.x, this.dot.y, this.isLeft);
+    }
+    
+    setRandomVelocity() {
+        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+        const speed = Phaser.Math.FloatBetween(MIN_TARGET_SPEED, MAX_TARGET_SPEED);
+        this.dot.body.setVelocity(
+            Math.cos(angle) * speed,
+            Math.sin(angle) * speed
+        );
+    }
+    
+    resize(width, height) {
+        this.baseRadius = Math.min(width, height) * 0.1;
+        const newRadius = this.calculateRadius();
+        this.dot.setRadius(newRadius);
+        this.dot.body.setCircle(newRadius);
+        
+        // Reposition based on whether it's left or right
+        const x = this.isLeft ? width * TARGET_CONFIG.LEFT_X_RATIO : width * TARGET_CONFIG.RIGHT_X_RATIO;
+        const y = height * TARGET_CONFIG.Y_RATIO;
+        this.dot.setPosition(x, y);
+    }
+}
+
 function preload() {
     // No assets needed
 }
@@ -104,7 +196,7 @@ function create() {
     joystickZones.left = this.add.rectangle(0, zoneY, w / 2, zoneHeight, 0x444444).setOrigin(0);
     joystickZones.right = this.add.rectangle(w / 2, zoneY, w / 2, zoneHeight, 0x444444).setOrigin(0);
 
-    // Create controllable circle outlines (slightly larger)
+    // Create controllable circles
     const radius = Math.min(w, h) * 0.1;
     leftCircle = this.add.arc(w * 0.25, h * 0.5, radius, 0, 360).setStrokeStyle(4, 0x0000ff).setFillStyle(0x000000, 0);
     this.physics.add.existing(leftCircle);
@@ -118,33 +210,17 @@ function create() {
     rightCircle.body.setCollideWorldBounds(true);
     rightCircle.body.setBounce(0.5);
 
-    // Direction indicators as graphics
+    // Direction indicators and graphics
     leftIndicator = this.add.graphics();
     rightIndicator = this.add.graphics();
-    // Thumb connection lines
     leftThumbLine = this.add.graphics();
     rightThumbLine = this.add.graphics();
-    // Sparkle graphics
     leftSparkle = this.add.graphics();
     rightSparkle = this.add.graphics();
 
-    // Create moving target dots
-    const dotRadius = radius * 0.3;
-    targetBlue = this.add.circle(w * 0.25, h * 0.25, dotRadius, 0x8888ff);
-    this.physics.add.existing(targetBlue);
-    targetBlue.body.setCircle(dotRadius);
-    targetBlue.body.setCollideWorldBounds(true);
-    targetBlue.body.setBounce(1);
-
-    targetRed = this.add.circle(w * 0.75, h * 0.25, dotRadius, 0xff8888);
-    this.physics.add.existing(targetRed);
-    targetRed.body.setCircle(dotRadius);
-    targetRed.body.setCollideWorldBounds(true);
-    targetRed.body.setBounce(1);
-
-    // Assign initial random velocities to targets
-    setRandomVelocity(targetBlue);
-    setRandomVelocity(targetRed);
+    // Create targets using the new class
+    targetBlue = new Target(this, w * TARGET_CONFIG.LEFT_X_RATIO, h * TARGET_CONFIG.Y_RATIO, radius, 0x8888ff, true);
+    targetRed = new Target(this, w * TARGET_CONFIG.RIGHT_X_RATIO, h * TARGET_CONFIG.Y_RATIO, radius, 0xff8888, false);
 
     this.scale.on('resize', resize, this);
 }
@@ -201,11 +277,11 @@ function update() {
         }
     });
 
-    // Draw direction indicators
+    // Draw indicators
     drawIndicator(leftIndicator, leftCircle);
     drawIndicator(rightIndicator, rightCircle);
 
-    // Draw thumb connection lines
+    // Draw thumb lines
     if (leftPointer) {
         leftThumbLine.lineStyle(2, 0x0000ff);
         leftThumbLine.beginPath();
@@ -221,21 +297,15 @@ function update() {
         rightThumbLine.strokePath();
     }
 
-    // Update cooldowns
-    leftSpawnCooldown = Math.max(0, leftSpawnCooldown - (1/60));
-    rightSpawnCooldown = Math.max(0, rightSpawnCooldown - (1/60));
+    // Update targets and check overlaps
+    targetBlue.update(1/60);
+    targetRed.update(1/60);
+    targetBlue.checkOverlap(leftCircle);
+    targetRed.checkOverlap(rightCircle);
 
-    // Update overlap checks
-    if (this.physics.overlap(leftCircle, targetBlue)) {
-        drawEnhancedSparkle(leftSparkle, targetBlue.x, targetBlue.y, leftCircle.radius * 0.4, true);
-    }
-    if (this.physics.overlap(rightCircle, targetRed)) {
-        drawEnhancedSparkle(rightSparkle, targetRed.x, targetRed.y, rightCircle.radius * 0.4, false);
-    }
-
-    // Update and draw particles
-    leftParticles = updateParticles(leftSparkle, leftParticles, 0x8888ff);
-    rightParticles = updateParticles(rightSparkle, rightParticles, 0xff8888);
+    // Update particles
+    leftParticles = updateParticles(leftSparkle, leftParticles, 0xFFD700);
+    rightParticles = updateParticles(rightSparkle, rightParticles, 0xFFD700);
 }
 
 function drawIndicator(indicator, circle) {
@@ -252,26 +322,6 @@ function drawIndicator(indicator, circle) {
         indicator.lineTo(circle.x + ux * length, circle.y + uy * length);
         indicator.strokePath();
     }
-}
-
-function drawEnhancedSparkle(graphics, x, y, spread, isLeft) {
-    const cooldown = isLeft ? leftSpawnCooldown : rightSpawnCooldown;
-    if (cooldown <= 0) {
-        createParticles(x, y, isLeft);
-        if (isLeft) {
-            leftSpawnCooldown = PARTICLE_CONFIG.SPAWN_COOLDOWN;
-        } else {
-            rightSpawnCooldown = PARTICLE_CONFIG.SPAWN_COOLDOWN;
-        }
-    }
-}
-
-function setRandomVelocity(target) {
-    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-    const speed = Phaser.Math.FloatBetween(MIN_TARGET_SPEED, MAX_TARGET_SPEED);
-    target.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
-    target.body.setCollideWorldBounds(true);
-    target.body.onWorldBounds = true;
 }
 
 function resize(gameSize) {
@@ -292,13 +342,9 @@ function resize(gameSize) {
     rightCircle.setRadius(radius);
     rightCircle.body.setCircle(radius);
 
-    const dotRadius = radius * 0.3;
-    targetBlue.setPosition(width * 0.25, height * 0.25);
-    targetBlue.setRadius(dotRadius);
-    targetBlue.body.setCircle(dotRadius);
-    targetRed.setPosition(width * 0.75, height * 0.25);
-    targetRed.setRadius(dotRadius);
-    targetRed.body.setCircle(dotRadius);
+    // Resize targets
+    targetBlue.resize(width, height);
+    targetRed.resize(width, height);
 }
 
 function createParticles(x, y, isLeft) {

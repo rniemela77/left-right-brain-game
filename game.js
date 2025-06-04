@@ -33,33 +33,27 @@ let rightSpawnCooldown = 0;
 // Particle system configuration
 const PARTICLE_CONFIG = {
     // Spawn settings
-    SPAWN_COOLDOWN: 0.03,        // Time between particle bursts
-    PARTICLES_PER_BURST: 8,      // Base number of particles per burst
-    PARTICLES_PER_DIRECTION: 2,  // How many particles to spawn at each base angle
+    SPAWN_COOLDOWN: 0.1,
+    PARTICLES_PER_BURST: 12,    // More particles
+    SPAWN_RADIUS: 8,           // Spawn within this radius
     
     // Movement
-    BASE_SPEED: 60,             // Reduced from 80 for tighter effect
-    SPEED_VARIANCE: 20,         // Reduced from 40 for more consistent movement
-    ANGLE_SPREAD: 0.3,          // Reduced from 0.5 for tighter spread
-    
-    // Oscillation
-    OSC_SPEED_MIN: 5,          
-    OSC_SPEED_VARIANCE: 5,     
-    OSC_MAGNITUDE: 0.3,        // Reduced from 0.5 for less weaving
+    BASE_SPEED: 120,            // Faster for more energy
+    SPEED_VARIANCE: 40,        // More speed variance
+    ANGLE_SPREAD: 6.28,        // Full circle (2*PI) for random directions
     
     // Appearance
-    SIZE_MIN: 1,               // Reduced from 2 for smaller particles
-    SIZE_VARIANCE: 1.5,        // Reduced from 3 for more consistent sizes
-    SIZE_DECAY: 0.96,          // Slightly faster decay
-    MIN_SIZE: 0.3,             // Reduced from 0.5 for smaller end size
+    START_SIZE: 5,            // Bigger starting size
+    MIN_SIZE: 2,              // Larger minimum size
+    SIZE_DECAY: 0.94,         // Slower decay - larger number = faster decay
+    ALPHA_START: 0.8,         // More visible
     
-    // Life and fade
-    LIFE_DECAY: 0.02,          // Slightly faster decay
-    ALPHA_MULTIPLIER: 2,       
+    // Life
+    LIFE_DECAY: 0.03,         // Longer life
     
-    // Color
-    SHIMMER_MAGNITUDE: 0.2,    
-    COLOR_VARIANCE: 40,        
+    // Colors
+    COLORS: [0xFFD700, 0xFFFFFF],  // Gold and White
+    WHITE_PARTICLE_CHANCE: 0.4      // 40% chance for white particles
 };
 
 const TARGET_CONFIG = {
@@ -72,33 +66,28 @@ const TARGET_CONFIG = {
 };
 
 class Particle {
-    constructor(x, y, angle, speed) {
-        this.x = x;
-        this.y = y;
-        this.angle = angle;
-        this.baseSpeed = speed;
-        this.speed = speed * (0.5 + Math.random() * 0.5);
-        this.size = PARTICLE_CONFIG.SIZE_MIN + Math.random() * PARTICLE_CONFIG.SIZE_VARIANCE;
+    constructor(x, y, angle) {
+        // Random position within spawn radius
+        const r = Math.random() * PARTICLE_CONFIG.SPAWN_RADIUS;
+        const a = Math.random() * Math.PI * 2;
+        this.x = x + Math.cos(a) * r;
+        this.y = y + Math.sin(a) * r;
+        
+        // Random direction
+        this.angle = Math.random() * Math.PI * 2;
+        this.speed = PARTICLE_CONFIG.BASE_SPEED + (Math.random() - 0.5) * PARTICLE_CONFIG.SPEED_VARIANCE;
         this.life = 1;
-        this.oscillation = Math.random() * Math.PI * 2;
-        this.oscillationSpeed = PARTICLE_CONFIG.OSC_SPEED_MIN + Math.random() * PARTICLE_CONFIG.OSC_SPEED_VARIANCE;
+        this.size = PARTICLE_CONFIG.START_SIZE;
+        this.color = Math.random() < PARTICLE_CONFIG.WHITE_PARTICLE_CHANCE ? 
+            PARTICLE_CONFIG.COLORS[1] : PARTICLE_CONFIG.COLORS[0];
     }
 
     update(delta) {
-        this.oscillation += this.oscillationSpeed * delta;
-        
-        const perpAngle = this.angle + Math.PI/2;
-        const oscillationAmount = Math.sin(this.oscillation) * PARTICLE_CONFIG.OSC_MAGNITUDE;
-        
-        this.x += (Math.cos(this.angle) * this.speed + 
-                   Math.cos(perpAngle) * oscillationAmount * this.baseSpeed) * delta;
-        this.y += (Math.sin(this.angle) * this.speed + 
-                   Math.sin(perpAngle) * oscillationAmount * this.baseSpeed) * delta;
-        
+        this.x += Math.cos(this.angle) * this.speed * delta;
+        this.y += Math.sin(this.angle) * this.speed * delta;
         this.life -= PARTICLE_CONFIG.LIFE_DECAY;
-        this.alpha = Math.min(1, this.life * PARTICLE_CONFIG.ALPHA_MULTIPLIER);
-        this.size = Math.max(PARTICLE_CONFIG.MIN_SIZE, this.size * PARTICLE_CONFIG.SIZE_DECAY);
-        return this.life > 0;
+        this.size *= PARTICLE_CONFIG.SIZE_DECAY;
+        return this.life > 0 && this.size >= PARTICLE_CONFIG.MIN_SIZE;
     }
 }
 
@@ -340,8 +329,8 @@ function update() {
     targetRed.checkOverlap(rightCircle);
 
     // Update particles
-    leftParticles = updateParticles(leftSparkle, leftParticles, 0xFFD700);
-    rightParticles = updateParticles(rightSparkle, rightParticles, 0xFFD700);
+    leftParticles = updateParticles(leftSparkle, leftParticles);
+    rightParticles = updateParticles(rightSparkle, rightParticles);
 }
 
 function drawIndicator(indicator, circle) {
@@ -388,33 +377,44 @@ function resize(gameSize) {
 
 function createParticles(x, y, isLeft) {
     const particles = isLeft ? leftParticles : rightParticles;
-    const numParticles = PARTICLE_CONFIG.PARTICLES_PER_BURST;
     
-    for (let i = 0; i < numParticles; i++) {
-        const baseAngle = (i / numParticles) * Math.PI * 2;
-        for (let j = 0; j < PARTICLE_CONFIG.PARTICLES_PER_DIRECTION; j++) {
-            const angle = baseAngle + (Math.random() - 0.5) * PARTICLE_CONFIG.ANGLE_SPREAD;
-            const speed = PARTICLE_CONFIG.BASE_SPEED + Math.random() * PARTICLE_CONFIG.SPEED_VARIANCE;
-            particles.push(new Particle(x, y, angle, speed));
-        }
+    // Create particles
+    for (let i = 0; i < PARTICLE_CONFIG.PARTICLES_PER_BURST; i++) {
+        particles.push(new Particle(x, y));
     }
 }
 
-function updateParticles(graphics, particles, color) {
+function updateParticles(graphics, particles) {
     graphics.clear();
-    particles = particles.filter(particle => {
-        if (particle.update(1/60)) {
-            const shimmer = Math.sin(particle.oscillation) * PARTICLE_CONFIG.SHIMMER_MAGNITUDE;
-            const r = 0xFF;
-            const g = Math.floor(0xD7 + shimmer * PARTICLE_CONFIG.COLOR_VARIANCE);
-            const b = Math.floor(shimmer * PARTICLE_CONFIG.COLOR_VARIANCE);
-            const color = (r << 16) | (g << 8) | b;
-            
-            graphics.fillStyle(color, particle.alpha);
-            graphics.fillCircle(particle.x, particle.y, particle.size);
-            return true;
+    if (particles.length > 0) {
+        // Group particles by color for efficient rendering
+        const goldParticles = particles.filter(p => p.color === PARTICLE_CONFIG.COLORS[0]);
+        const whiteParticles = particles.filter(p => p.color === PARTICLE_CONFIG.COLORS[1]);
+        
+        // Update and draw gold particles
+        if (goldParticles.length > 0) {
+            graphics.fillStyle(PARTICLE_CONFIG.COLORS[0], PARTICLE_CONFIG.ALPHA_START);
+            goldParticles.forEach(particle => {
+                if (particle.update(1/60)) {
+                    graphics.fillCircle(particle.x, particle.y, particle.size);
+                }
+            });
         }
-        return false;
-    });
+        
+        // Update and draw white particles
+        if (whiteParticles.length > 0) {
+            graphics.fillStyle(PARTICLE_CONFIG.COLORS[1], PARTICLE_CONFIG.ALPHA_START);
+            whiteParticles.forEach(particle => {
+                if (particle.update(1/60)) {
+                    graphics.fillCircle(particle.x, particle.y, particle.size);
+                }
+            });
+        }
+        
+        // Remove dead particles
+        particles = particles.filter(particle => 
+            particle.life > 0 && particle.size >= PARTICLE_CONFIG.MIN_SIZE
+        );
+    }
     return particles;
 } 

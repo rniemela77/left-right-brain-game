@@ -231,11 +231,11 @@ class MainMenu extends Phaser.Scene {
             padding: { x: 4, y: 4 }
         };
 
-        this.add.text(w/2, h - 80, 'Created by Robert Niemela', creditsStyle)
+        this.add.text(w/2, h - 120, 'Created by Robert Niemela', creditsStyle)
             .setOrigin(0.5)
             .setAlpha(0.7);
 
-        this.add.text(w/2, h - 40, 'Email: rvniemela@hotmail.com', creditsStyle)
+        this.add.text(w/2, h - 80, 'Email: rvniemela@hotmail.com', creditsStyle)
             .setOrigin(0.5)
             .setAlpha(0.7);
     }
@@ -289,7 +289,7 @@ class MainMenu extends Phaser.Scene {
                             fontSize: `${scoreSize}px`
                         });
                 } else if (child.text.startsWith('Created by') || child.text.startsWith('Email:')) {
-                    const yPos = child.text.startsWith('Created by') ? h - 80 : h - 40;
+                    const yPos = child.text.startsWith('Created by') ? h - 120 : h - 80;
                     child.setPosition(w/2, yPos)
                         .setStyle({
                             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',

@@ -65,6 +65,32 @@ const TARGET_CONFIG = {
     Y_RATIO: 0.25
 };
 
+const PLAYER_CONFIG = {
+    // Size
+    SIZE_RATIO: 0.15,           // Circle size relative to screen size
+    OUTLINE_WIDTH: 2,          // Width of the circle outline
+    
+    // Movement
+    MAX_SPEED: 300,           // Maximum movement speed
+    BOUNCE: 0.5,              // Bounce factor when hitting walls
+    CONTROL_SENSITIVITY: 0.7, // Lower = less sensitive (0.1 to 1.0)
+    DEADZONE: 0.1,           // Ignore very small movements (0.0 to 1.0)
+    ACCELERATION: 0.8,        // How quickly to reach target speed (0.1 to 1.0)
+    
+    // Visuals
+    FILL_COLOR: 0x000000,     // Inside color of circle
+    FILL_ALPHA: 0,            // Transparency of fill (0 = transparent)
+    INDICATOR_WIDTH: 2,       // Width of direction indicator line
+    INDICATOR_COLOR: 0xFFFFFF, // Color of direction indicator
+    INDICATOR_LENGTH: 3,      // Length multiplier for direction indicator
+    THUMB_WIDTH: 2,           // Width of thumb line to joystick
+    
+    // Positions
+    LEFT_X_RATIO: 0.25,       // X position for left circle
+    RIGHT_X_RATIO: 0.75,      // X position for right circle
+    Y_RATIO: 0.5             // Y position for both circles
+};
+
 class Particle {
     constructor(x, y, angle) {
         // Random position within spawn radius
@@ -98,14 +124,14 @@ class PlayerCircle {
         
         // Create the circle
         this.circle = scene.add.arc(x, y, radius, 0, 360)
-            .setStrokeStyle(4, color)
-            .setFillStyle(0x000000, 0);
+            .setStrokeStyle(PLAYER_CONFIG.OUTLINE_WIDTH, color)
+            .setFillStyle(PLAYER_CONFIG.FILL_COLOR, PLAYER_CONFIG.FILL_ALPHA);
             
         // Add physics
         scene.physics.add.existing(this.circle);
         this.circle.body.setCircle(radius);
         this.circle.body.setCollideWorldBounds(true);
-        this.circle.body.setBounce(0.5);
+        this.circle.body.setBounce(PLAYER_CONFIG.BOUNCE);
         
         // Create graphics for visuals
         this.indicator = scene.add.graphics();
@@ -116,13 +142,13 @@ class PlayerCircle {
     }
     
     setVelocity(x, y) {
-        this.circle.body.setVelocity(x, y);
+        this.circle.body.setVelocity(x * PLAYER_CONFIG.MAX_SPEED, y * PLAYER_CONFIG.MAX_SPEED);
     }
     
     updateThumbLine(pointer) {
         this.thumbLine.clear();
         if (pointer) {
-            this.thumbLine.lineStyle(2, this.color);
+            this.thumbLine.lineStyle(PLAYER_CONFIG.THUMB_WIDTH, this.color);
             this.thumbLine.beginPath();
             this.thumbLine.moveTo(this.circle.x, this.circle.y);
             this.thumbLine.lineTo(pointer.x, pointer.y);
@@ -138,8 +164,8 @@ class PlayerCircle {
         if (speed > 0) {
             const ux = vx / speed;
             const uy = vy / speed;
-            const length = (speed / MAX_SPEED) * this.circle.radius * 3;
-            this.indicator.lineStyle(2, 0xffffff);
+            const length = (speed / PLAYER_CONFIG.MAX_SPEED) * this.circle.radius * PLAYER_CONFIG.INDICATOR_LENGTH;
+            this.indicator.lineStyle(PLAYER_CONFIG.INDICATOR_WIDTH, PLAYER_CONFIG.INDICATOR_COLOR);
             this.indicator.beginPath();
             this.indicator.moveTo(this.circle.x, this.circle.y);
             this.indicator.lineTo(this.circle.x + ux * length, this.circle.y + uy * length);
@@ -148,9 +174,9 @@ class PlayerCircle {
     }
     
     resize(width, height) {
-        const radius = Math.min(width, height) * 0.1;
-        const x = this.isLeft ? width * 0.25 : width * 0.75;
-        const y = height * 0.5;
+        const radius = Math.min(width, height) * PLAYER_CONFIG.SIZE_RATIO;
+        const x = this.isLeft ? width * PLAYER_CONFIG.LEFT_X_RATIO : width * PLAYER_CONFIG.RIGHT_X_RATIO;
+        const y = height * PLAYER_CONFIG.Y_RATIO;
         
         this.circle.setPosition(x, y);
         this.circle.setRadius(radius);
@@ -246,9 +272,9 @@ function create() {
     joystickZones.right = this.add.rectangle(w / 2, zoneY, w / 2, zoneHeight, 0x444444).setOrigin(0);
 
     // Create player circles
-    const radius = Math.min(w, h) * 0.1;
-    leftCircle = new PlayerCircle(this, w * 0.25, h * 0.5, radius, 0x0000ff, true);
-    rightCircle = new PlayerCircle(this, w * 0.75, h * 0.5, radius, 0xff0000, false);
+    const radius = Math.min(w, h) * PLAYER_CONFIG.SIZE_RATIO;
+    leftCircle = new PlayerCircle(this, w * PLAYER_CONFIG.LEFT_X_RATIO, h * PLAYER_CONFIG.Y_RATIO, radius, 0x0000ff, true);
+    rightCircle = new PlayerCircle(this, w * PLAYER_CONFIG.RIGHT_X_RATIO, h * PLAYER_CONFIG.Y_RATIO, radius, 0xff0000, false);
 
     // Create sparkle graphics
     leftSparkle = this.add.graphics();
@@ -303,9 +329,23 @@ function update() {
             const centerY = h - zoneHeight / 2;
             let dx = px - centerX;
             let dy = py - centerY;
-            let factorX = Phaser.Math.Clamp(dx / maxDist, -1, 1);
-            let factorY = Phaser.Math.Clamp(dy / maxDist, -1, 1);
-            leftCircle.setVelocity(factorX * MAX_SPEED, factorY * MAX_SPEED);
+            
+            // Calculate distance from center as a ratio (0 to 1)
+            let distance = Math.sqrt(dx * dx + dy * dy) / maxDist;
+            
+            // Apply deadzone
+            if (distance < PLAYER_CONFIG.DEADZONE) {
+                dx = 0;
+                dy = 0;
+            } else {
+                // Normalize and apply sensitivity curve
+                let factor = Math.min(1, distance);
+                factor = Math.pow(factor, 1 / PLAYER_CONFIG.CONTROL_SENSITIVITY);
+                dx = (dx / maxDist) * factor;
+                dy = (dy / maxDist) * factor;
+            }
+            
+            leftCircle.setVelocity(dx, dy);
             leftPointer = pointer;
         }
 
@@ -315,9 +355,23 @@ function update() {
             const centerY = h - zoneHeight / 2;
             let dx = px - centerX;
             let dy = py - centerY;
-            let factorX = Phaser.Math.Clamp(dx / maxDist, -1, 1);
-            let factorY = Phaser.Math.Clamp(dy / maxDist, -1, 1);
-            rightCircle.setVelocity(factorX * MAX_SPEED, factorY * MAX_SPEED);
+            
+            // Calculate distance from center as a ratio (0 to 1)
+            let distance = Math.sqrt(dx * dx + dy * dy) / maxDist;
+            
+            // Apply deadzone
+            if (distance < PLAYER_CONFIG.DEADZONE) {
+                dx = 0;
+                dy = 0;
+            } else {
+                // Normalize and apply sensitivity curve
+                let factor = Math.min(1, distance);
+                factor = Math.pow(factor, 1 / PLAYER_CONFIG.CONTROL_SENSITIVITY);
+                dx = (dx / maxDist) * factor;
+                dy = (dy / maxDist) * factor;
+            }
+            
+            rightCircle.setVelocity(dx, dy);
             rightPointer = pointer;
         }
     });
